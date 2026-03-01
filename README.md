@@ -4,6 +4,11 @@ English | [简体中文](README.zh-CN.md)
 
 RexOS is a long-running agent operating system: persistent memory, tool sandboxing, and model routing, plus an Anthropic-style harness for multi-session work.
 
+## Documentation
+
+- Docs site: https://os.rexai.top
+- (If the custom domain isn’t configured yet) GitHub Pages: https://rexleimo.github.io/rexos/
+
 ## Status
 
 This repository is bootstrapped with a long-running harness (`features.json`, `init.sh`, `rexos-progress.md`). Work is tracked by flipping feature `passes` from `false` → `true`.

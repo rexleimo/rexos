@@ -1,0 +1,75 @@
+site_name: RexOS
+site_description: Long-running agent operating system (harness + memory + tools + routing)
+site_url: https://os.rexai.top/
+
+repo_name: rexleimo/rexos
+repo_url: https://github.com/rexleimo/rexos
+
+docs_dir: docs-site
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    - scheme: default
+      primary: deep purple
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: deep purple
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.highlight:
+      anchor_linenums: true
+      linenums: true
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Tutorials:
+      - Quickstart (Ollama): tutorials/quickstart-ollama.md
+      - Long Task With Harness: tutorials/harness-long-task.md
+  - How-to Guides:
+      - Install & Update: how-to/install.md
+      - Providers & Routing: how-to/providers.md
+      - Common Use Cases: how-to/use-cases.md
+      - Windows Notes: how-to/windows.md
+      - Run the Daemon: how-to/daemon.md
+  - Explanation:
+      - Concepts: explanation/concepts.md
+      - Security & Sandboxing: explanation/security.md
+  - Reference:
+      - CLI: reference/cli.md
+      - Config: reference/config.md
+      - Tools: reference/tools.md
+  - 中文:
+      - 主页: zh/index.md
+      - 快速开始（Ollama）: zh/tutorials/quickstart-ollama.md
+      - Harness 长任务: zh/tutorials/harness-long-task.md
+      - Providers 与路由: zh/how-to/providers.md
+      - 常见场景: zh/how-to/use-cases.md
+      - Windows 说明: zh/how-to/windows.md
+

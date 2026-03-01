@@ -1,6 +1,7 @@
 # Rust
 /target/
 /dist/
+/site/
 **/*.rs.bk
 
 # RexOS runtime

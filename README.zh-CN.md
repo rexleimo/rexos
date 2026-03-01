@@ -4,6 +4,11 @@
 
 RexOS 是一个长任务的 Agent OS：持久化记忆、工具沙盒、模型路由，以及一个 Anthropic 风格的 Harness，用于跨多次会话持续推进任务。
 
+## 文档
+
+- 文档站点：https://os.rexai.top
+- （如自定义域名未配置）GitHub Pages：https://rexleimo.github.io/rexos/
+
 ## 状态
 
 本仓库已用长任务 harness 引导初始化（`features.json`、`init.sh`、`rexos-progress.md`）。推进方式是把每个 feature 的 `passes` 从 `false` 置为 `true`，并保持 checklist 稳定。
@@ -99,4 +104,3 @@ model = "default" # uses providers.<name>.default_model
 - `glm` / `glm_native`（OpenAI-compatible / 智谱原生）
 - `minimax` / `minimax_native`（OpenAI-compatible / MiniMax 原生）
 - `minimax_anthropic`（Anthropic-compatible 网关）
-
