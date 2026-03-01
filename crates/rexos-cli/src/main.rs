@@ -35,7 +35,15 @@ enum Command {
 #[derive(Debug, clap::Subcommand)]
 enum HarnessCommand {
     /// Initialize a workspace directory for long-running agent sessions
-    Init { dir: PathBuf },
+    Init {
+        dir: PathBuf,
+        /// Optional initializer prompt (generates a comprehensive features.json)
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Override session id (default: persisted per-workspace)
+        #[arg(long)]
+        session: Option<String>,
+    },
     /// Run a harness session (preflight + agent run)
     Run {
         dir: PathBuf,
@@ -45,6 +53,9 @@ enum HarnessCommand {
         /// Override session id (default: derived UUID per run)
         #[arg(long)]
         session: Option<String>,
+        /// Max attempts when init.sh fails (default 3)
+        #[arg(long, default_value_t = 3)]
+        max_attempts: usize,
     },
 }
 
@@ -142,53 +153,78 @@ async fn main() -> anyhow::Result<()> {
             }
         },
         Command::Harness { command } => match command {
-            HarnessCommand::Init { dir } => {
-                rexos::harness::init_workspace(&dir)?;
-                println!("Harness initialized in {}", dir.display());
+            HarnessCommand::Init { dir, prompt, session } => {
+                if prompt.is_none() {
+                    rexos::harness::init_workspace(&dir)?;
+                    println!("Harness initialized in {}", dir.display());
+                    return Ok(());
+                }
+
+                match rexos::harness::init_workspace(&dir) {
+                    Ok(()) => {}
+                    Err(e) => {
+                        let msg = e.to_string();
+                        if !msg.contains("already initialized") {
+                            return Err(e);
+                        }
+                    }
+                }
+
+                let session_id = match session {
+                    Some(s) => s,
+                    None => rexos::harness::resolve_session_id(&dir)?,
+                };
+
+                let prompt = prompt.expect("checked above");
+
+                let paths = RexosPaths::discover()?;
+                paths.ensure_dirs()?;
+                RexosConfig::ensure_default(&paths)?;
+                let cfg = RexosConfig::load(&paths)?;
+
+                let memory = MemoryStore::open_or_create(&paths)?;
+                let llms = rexos::llm::registry::LlmRegistry::from_config(&cfg)?;
+                let router = rexos::router::ModelRouter::new(cfg.router);
+                let agent = rexos::agent::AgentRuntime::new(memory, llms, router);
+
+                rexos::harness::bootstrap_with_prompt(&agent, &dir, &session_id, &prompt).await?;
+
+                println!("Harness bootstrapped in {}", dir.display());
+                eprintln!("[rexos] session_id={session_id}");
             }
             HarnessCommand::Run {
                 dir,
                 prompt,
                 session,
+                max_attempts,
             } => {
-                rexos::harness::preflight(&dir)?;
-                if let Some(prompt) = prompt {
-                    let paths = RexosPaths::discover()?;
-                    paths.ensure_dirs()?;
-                    RexosConfig::ensure_default(&paths)?;
-                    let cfg = RexosConfig::load(&paths)?;
-
-                    let memory = MemoryStore::open_or_create(&paths)?;
-                    let llms = rexos::llm::registry::LlmRegistry::from_config(&cfg)?;
-                    let router = rexos::router::ModelRouter::new(cfg.router);
-                    let agent = rexos::agent::AgentRuntime::new(memory, llms, router);
-
-                    let session_id =
-                        session.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-                    let harness_system = r#"You are RexOS running a long-horizon harness session.
-
-Rules:
-- Work only inside the workspace directory.
-- Make small, incremental progress.
-- Prefer using tools (`fs_read`, `fs_write`, `shell`) to inspect and change files.
-- If you change code, run the workspace's `init.sh` (smoke checks) and fix any failures.
-- Append a short summary to `rexos-progress.md`.
-- Commit meaningful progress to git with a descriptive message.
-"#;
-
-                    let out = agent
-                        .run_session(
-                            dir,
-                            &session_id,
-                            Some(harness_system),
-                            &prompt,
-                            rexos::router::TaskKind::Coding,
-                        )
-                        .await?;
-                    println!("{out}");
-                    eprintln!("[rexos] session_id={session_id}");
+                if prompt.is_none() {
+                    rexos::harness::preflight(&dir)?;
+                    return Ok(());
                 }
+
+                let session_id = match session {
+                    Some(s) => s,
+                    None => rexos::harness::resolve_session_id(&dir)?,
+                };
+
+                let prompt = prompt.expect("checked above");
+
+                let paths = RexosPaths::discover()?;
+                paths.ensure_dirs()?;
+                RexosConfig::ensure_default(&paths)?;
+                let cfg = RexosConfig::load(&paths)?;
+
+                let memory = MemoryStore::open_or_create(&paths)?;
+                let llms = rexos::llm::registry::LlmRegistry::from_config(&cfg)?;
+                let router = rexos::router::ModelRouter::new(cfg.router);
+                let agent = rexos::agent::AgentRuntime::new(memory, llms, router);
+
+                let out =
+                    rexos::harness::run_harness(&agent, &dir, &session_id, &prompt, max_attempts)
+                        .await?;
+                println!("{out}");
+                eprintln!("[rexos] session_id={session_id}");
             }
         },
         Command::Daemon { command } => match command {
