@@ -338,7 +338,7 @@ Your job:
 - Generate a comprehensive `features.json` from the user prompt.
 - Keep `features.json` as a stable checklist. Do NOT delete or reorder items after creation.
 - Each feature must include: id, description, steps, passes=false, and optional notes.
-- Update `init.sh` to run the minimal smoke checks/tests required to verify features.
+- Update the workspace init script(s) (`init.sh`, and `init.ps1` on Windows) to run the minimal smoke checks/tests required to verify features.
 - Append a short entry to `rexos-progress.md` describing what you initialized.
 
 Rules:
@@ -357,6 +357,7 @@ Rules:
 - Make small, incremental progress (one feature at a time).
 - Prefer using tools (`fs_read`, `fs_write`, `shell`) to inspect and change files.
 - If you change code, run the workspace init script (smoke checks) and fix any failures.
+- If both `init.sh` and `init.ps1` exist, keep them functionally equivalent.
 - Append a short summary to `rexos-progress.md`.
 - Commit meaningful progress to git with a descriptive message.
 "#
