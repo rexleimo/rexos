@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use crate::config::{ProviderKind, RexosConfig};
 use crate::llm::anthropic::AnthropicDriver;
-use crate::llm::driver::{LlmDriver, OpenAiCompatDriver, UnimplementedDriver};
+use crate::llm::driver::{LlmDriver, OpenAiCompatDriver};
+use crate::llm::gemini::GeminiDriver;
 
 #[derive(Clone)]
 pub struct LlmRegistry {
@@ -33,7 +34,10 @@ impl LlmRegistry {
                     p.base_url.clone(),
                     cfg.provider_api_key(name),
                 )?),
-                ProviderKind::Gemini => Arc::new(UnimplementedDriver::new("gemini")),
+                ProviderKind::Gemini => Arc::new(GeminiDriver::new(
+                    p.base_url.clone(),
+                    cfg.provider_api_key(name),
+                )?),
             };
 
             drivers.insert(name.clone(), driver);
