@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::fs;
 
 use anyhow::Context;
@@ -6,9 +7,11 @@ use serde::{Deserialize, Serialize};
 use crate::paths::RexosPaths;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
 pub struct RexosConfig {
     pub llm: LlmConfig,
+    #[serde(default)]
+    pub providers: BTreeMap<String, ProviderConfig>,
+    #[serde(default)]
     pub router: RouterConfig,
 }
 
@@ -23,19 +26,57 @@ pub struct LlmConfig {
     pub model: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ProviderKind {
+    #[serde(rename = "openai_compatible")]
+    OpenAiCompatible,
+    #[serde(rename = "anthropic")]
+    Anthropic,
+    #[serde(rename = "gemini")]
+    Gemini,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProviderConfig {
+    pub kind: ProviderKind,
+    pub base_url: String,
+    pub api_key_env: String,
+    pub default_model: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct RouterConfig {
-    pub planning_model: String,
-    pub coding_model: String,
-    pub summary_model: String,
+    pub planning: RouteConfig,
+    pub coding: RouteConfig,
+    pub summary: RouteConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RouteConfig {
+    pub provider: String,
+    pub model: String,
 }
 
 impl Default for RexosConfig {
     fn default() -> Self {
+        let mut providers = BTreeMap::new();
+        providers.insert(
+            "ollama".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::OpenAiCompatible,
+                base_url: "http://127.0.0.1:11434/v1".to_string(),
+                api_key_env: "".to_string(),
+                default_model: "llama3.2".to_string(),
+            },
+        );
+
         Self {
             llm: LlmConfig::default(),
-            router: RouterConfig::default(),
+            providers: providers.clone(),
+            router: RouterConfig::default_from_provider("ollama", &providers),
         }
     }
 }
@@ -50,12 +91,52 @@ impl Default for LlmConfig {
     }
 }
 
-impl Default for RouterConfig {
+impl Default for ProviderConfig {
     fn default() -> Self {
         Self {
-            planning_model: "gpt-4.1-mini".to_string(),
-            coding_model: "gpt-4.1-mini".to_string(),
-            summary_model: "gpt-4.1-mini".to_string(),
+            kind: ProviderKind::OpenAiCompatible,
+            base_url: "".to_string(),
+            api_key_env: "".to_string(),
+            default_model: "".to_string(),
+        }
+    }
+}
+
+impl RouterConfig {
+    fn default_from_provider(default_provider: &str, providers: &BTreeMap<String, ProviderConfig>) -> Self {
+        let model = providers
+            .get(default_provider)
+            .map(|p| p.default_model.as_str())
+            .unwrap_or("llama3.2");
+
+        Self {
+            planning: RouteConfig {
+                provider: default_provider.to_string(),
+                model: model.to_string(),
+            },
+            coding: RouteConfig {
+                provider: default_provider.to_string(),
+                model: model.to_string(),
+            },
+            summary: RouteConfig {
+                provider: default_provider.to_string(),
+                model: model.to_string(),
+            },
+        }
+    }
+}
+
+impl Default for RouterConfig {
+    fn default() -> Self {
+        Self::default_from_provider("ollama", &BTreeMap::new())
+    }
+}
+
+impl Default for RouteConfig {
+    fn default() -> Self {
+        Self {
+            provider: "ollama".to_string(),
+            model: "llama3.2".to_string(),
         }
     }
 }
@@ -88,6 +169,18 @@ impl RexosConfig {
         }
         std::env::var(&self.llm.api_key_env).ok()
     }
+
+    pub fn provider_api_key(&self, provider: &str) -> Option<String> {
+        let env = self
+            .providers
+            .get(provider)
+            .map(|p| p.api_key_env.as_str())
+            .unwrap_or("");
+        if env.trim().is_empty() {
+            return None;
+        }
+        std::env::var(env).ok()
+    }
 }
 
 #[cfg(test)]
@@ -98,11 +191,15 @@ mod tests {
     fn default_config_serializes() {
         let cfg = RexosConfig::default();
         let toml_str = toml::to_string_pretty(&cfg).unwrap();
+        assert!(toml_str.contains("[providers.ollama]"));
+        assert!(toml_str.contains("kind = \"openai_compatible\""));
         assert!(toml_str.contains("base_url"));
         assert!(toml_str.contains("api_key_env"));
-        assert!(toml_str.contains("model"));
-        assert!(toml_str.contains("planning_model"));
-        assert!(toml_str.contains("coding_model"));
-        assert!(toml_str.contains("summary_model"));
+        assert!(toml_str.contains("default_model"));
+
+        assert!(toml_str.contains("[router.planning]"));
+        assert!(toml_str.contains("provider = \"ollama\""));
+        assert!(toml_str.contains("[router.coding]"));
+        assert!(toml_str.contains("[router.summary]"));
     }
 }

@@ -82,9 +82,18 @@ async fn agent_loop_executes_tool_calls_and_persists_history() {
     )
     .unwrap();
     let router = rexos::router::ModelRouter::new(rexos::config::RouterConfig {
-        planning_model: "x".to_string(),
-        coding_model: "x".to_string(),
-        summary_model: "x".to_string(),
+        planning: rexos::config::RouteConfig {
+            provider: "ollama".to_string(),
+            model: "x".to_string(),
+        },
+        coding: rexos::config::RouteConfig {
+            provider: "ollama".to_string(),
+            model: "x".to_string(),
+        },
+        summary: rexos::config::RouteConfig {
+            provider: "ollama".to_string(),
+            model: "x".to_string(),
+        },
     });
 
     let agent = rexos::agent::AgentRuntime::new(memory, llm, router);
