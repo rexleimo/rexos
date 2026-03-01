@@ -15,6 +15,11 @@ Download the archive for your OS from GitHub Releases, extract it, and put `rexo
 ### Option B: Build from source
 
 ```bash
+# Install to ~/.cargo/bin (recommended for dev)
+cargo install --path crates/rexos-cli --locked
+rexos --help
+
+# Or build a local binary
 cargo build --release -p rexos-cli
 ./target/release/rexos --help
 ```

@@ -14,7 +14,7 @@
 
 **Files:**
 - Modify: `Cargo.toml` (becomes virtual workspace)
-- Modify: `init.sh` (update `cargo run` target)
+- Modify: `init.sh` (run the built `rexos` binary for smoke checks)
 - Modify: `README.md` (update dev commands)
 - Create: `crates/rexos/Cargo.toml`
 - Create: `crates/rexos/src/lib.rs`
@@ -51,8 +51,8 @@ Each crate gets a minimal `lib.rs` that either owns code (moved modules) or re-e
 
 **Step 4: Update `init.sh` + README**
 
-- `init.sh` should use `cargo run -p rexos-cli -- --help`.
-- README examples should use `cargo run -p rexos-cli -- ...`.
+- `init.sh` should run the built binary for the smoke check: `./target/debug/rexos --help`.
+- README examples should use `rexos ...` (or `./target/<profile>/rexos ...` if not installed).
 
 ---
 
@@ -103,4 +103,3 @@ Run:
 git add -A
 git commit -m "refactor: split rexos into cargo workspace"
 ```
-

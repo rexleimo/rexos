@@ -8,6 +8,7 @@ echo "[rexos] tests..."
 cargo test
 
 echo "[rexos] smoke: CLI help"
-cargo run -p rexos-cli -- --help >/dev/null
+cargo build -p rexos-cli
+./target/debug/rexos --help >/dev/null
 
 echo "[rexos] done"

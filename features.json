@@ -11,7 +11,7 @@
       "category": "functional",
       "priority": "p0",
       "description": "`rexos --help` prints CLI usage.",
-      "steps": ["Run `cargo run -- --help`", "Verify help text is printed and exit code is 0."],
+      "steps": ["Run `rexos --help`", "Verify help text is printed and exit code is 0."],
       "passes": false,
       "notes": ""
     },
@@ -20,7 +20,7 @@
       "category": "functional",
       "priority": "p0",
       "description": "`rexos init` creates `~/.rexos/config.toml` and `~/.rexos/rexos.db` if missing.",
-      "steps": ["Run `cargo run -- init`", "Verify config file exists", "Verify SQLite DB exists"],
+      "steps": ["Run `rexos init`", "Verify config file exists", "Verify SQLite DB exists"],
       "passes": false,
       "notes": ""
     },
@@ -107,4 +107,3 @@
     }
   ]
 }
-
