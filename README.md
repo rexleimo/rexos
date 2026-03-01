@@ -6,6 +6,19 @@ RexOS is a long-running agent operating system: persistent memory, tool sandboxi
 
 This repository is bootstrapped with a long-running harness (`features.json`, `init.sh`, `rexos-progress.md`). Work is tracked by flipping feature `passes` from `false` → `true`.
 
+## Install
+
+### Option A: Download a prebuilt binary (recommended)
+
+Download the archive for your OS from GitHub Releases, extract it, and put `rexos` (or `rexos.exe`) somewhere on your `PATH`.
+
+### Option B: Build from source
+
+```bash
+cargo build --release -p rexos-cli
+./target/release/rexos --help
+```
+
 ## Quick start (dev)
 
 ```bash
@@ -21,14 +34,23 @@ RexOS defaults to `ollama` at `http://127.0.0.1:11434/v1` in `~/.rexos/config.to
 ollama serve
 
 # 2) Init RexOS (creates ~/.rexos/config.toml + ~/.rexos/rexos.db)
-cargo run -p rexos-cli -- init
+rexos init
 
 # 3) Run an agent session in a workspace directory
 mkdir -p /tmp/rexos-work
-cargo run -p rexos-cli -- agent run --workspace /tmp/rexos-work --prompt "Create hello.txt with the word hi"
+rexos agent run --workspace /tmp/rexos-work --prompt "Create hello.txt with the word hi"
 ```
 
 To run the optional Ollama smoke test: `REXOS_OLLAMA_MODEL=<your-model> cargo test -p rexos -- --ignored`.
+
+## Releasing (maintainers)
+
+Pushing a `v*` tag triggers the Release workflow which attaches prebuilt archives to a GitHub Release.
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## Providers & routing
 
