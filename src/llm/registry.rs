@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use crate::config::{ProviderKind, RexosConfig};
+use crate::llm::anthropic::AnthropicDriver;
 use crate::llm::driver::{LlmDriver, OpenAiCompatDriver, UnimplementedDriver};
 
 #[derive(Clone)]
@@ -28,7 +29,10 @@ impl LlmRegistry {
                     p.base_url.clone(),
                     cfg.provider_api_key(name),
                 )?),
-                ProviderKind::Anthropic => Arc::new(UnimplementedDriver::new("anthropic")),
+                ProviderKind::Anthropic => Arc::new(AnthropicDriver::new(
+                    p.base_url.clone(),
+                    cfg.provider_api_key(name),
+                )?),
                 ProviderKind::Gemini => Arc::new(UnimplementedDriver::new("gemini")),
             };
 
