@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::collections::HashMap;
 
 use anyhow::{bail, Context};
 
@@ -69,6 +70,7 @@ impl AgentRuntime {
         messages.push(user_msg);
 
         let tool_defs = tools.definitions();
+        let mut tool_call_counts: HashMap<String, u32> = HashMap::new();
         for _ in 0..8usize {
             let req = ChatCompletionRequest {
                 model: model.clone(),
@@ -93,6 +95,13 @@ impl AgentRuntime {
             };
 
             for call in tool_calls {
+                let sig = format!("{}|{}", call.function.name, call.function.arguments);
+                let count = tool_call_counts.entry(sig.clone()).or_insert(0);
+                *count += 1;
+                if *count >= 3 {
+                    bail!("tool loop detected: {sig}");
+                }
+
                 let output = tools
                     .call(&call.function.name, &call.function.arguments)
                     .await
