@@ -1,4 +1,5 @@
 use std::path::{Component, Path, PathBuf};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
 use anyhow::{bail, Context};
@@ -8,6 +9,7 @@ use rexos_llm::openai_compat::{ToolDefinition, ToolFunctionDefinition};
 #[derive(Debug, Clone)]
 pub struct Toolset {
     workspace_root: PathBuf,
+    http: reqwest::Client,
 }
 
 impl Toolset {
@@ -15,11 +17,16 @@ impl Toolset {
         let workspace_root = workspace_root
             .canonicalize()
             .with_context(|| format!("canonicalize workspace root: {}", workspace_root.display()))?;
-        Ok(Self { workspace_root })
+        let http = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .timeout(Duration::from_secs(30))
+            .build()
+            .context("build http client")?;
+        Ok(Self { workspace_root, http })
     }
 
     pub fn definitions(&self) -> Vec<ToolDefinition> {
-        vec![fs_read_def(), fs_write_def(), shell_def()]
+        vec![fs_read_def(), fs_write_def(), shell_def(), web_fetch_def()]
     }
 
     pub async fn call(&self, name: &str, arguments_json: &str) -> anyhow::Result<String> {
@@ -38,6 +45,17 @@ impl Toolset {
                 let args: ShellArgs = serde_json::from_str(arguments_json)
                     .context("parse shell arguments")?;
                 self.shell(&args.command, args.timeout_ms).await
+            }
+            "web_fetch" => {
+                let args: WebFetchArgs = serde_json::from_str(arguments_json)
+                    .context("parse web_fetch arguments")?;
+                self.web_fetch(
+                    &args.url,
+                    args.timeout_ms,
+                    args.max_bytes,
+                    args.allow_private,
+                )
+                .await
             }
             _ => bail!("unknown tool: {name}"),
         }
@@ -101,6 +119,70 @@ impl Toolset {
         Ok(combined)
     }
 
+    async fn web_fetch(
+        &self,
+        url: &str,
+        timeout_ms: Option<u64>,
+        max_bytes: Option<u64>,
+        allow_private: bool,
+    ) -> anyhow::Result<String> {
+        let url = reqwest::Url::parse(url).context("parse url")?;
+        match url.scheme() {
+            "http" | "https" => {}
+            _ => bail!("only http/https urls are allowed"),
+        }
+
+        let host = url.host_str().context("url missing host")?;
+        let port = url
+            .port_or_known_default()
+            .context("url missing port")?;
+
+        if !allow_private {
+            let ips = resolve_host_ips(host, port)
+                .await
+                .with_context(|| format!("resolve {host}:{port}"))?;
+            for ip in ips {
+                if is_forbidden_ip(ip) {
+                    bail!("url resolves to loopback/private address: {ip}");
+                }
+            }
+        }
+
+        let timeout = Duration::from_millis(timeout_ms.unwrap_or(20_000));
+        let max_bytes = max_bytes.unwrap_or(200_000) as usize;
+
+        let resp = tokio::time::timeout(timeout, self.http.get(url.clone()).send())
+            .await
+            .context("web_fetch timed out")?
+            .context("send request")?;
+
+        let status = resp.status().as_u16();
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string();
+
+        let bytes = tokio::time::timeout(timeout, resp.bytes())
+            .await
+            .context("web_fetch timed out")?
+            .context("read response body")?;
+
+        let truncated = bytes.len() > max_bytes;
+        let slice = if truncated { &bytes[..max_bytes] } else { &bytes };
+        let body = String::from_utf8_lossy(slice).to_string();
+
+        Ok(serde_json::json!({
+            "status": status,
+            "content_type": content_type,
+            "body": body,
+            "truncated": truncated,
+            "bytes": slice.len(),
+        })
+        .to_string())
+    }
+
     fn resolve_workspace_path(&self, user_path: &str) -> anyhow::Result<PathBuf> {
         let rel = validate_relative_path(user_path)?;
         let candidate = self.workspace_root.join(&rel);
@@ -157,6 +239,17 @@ struct ShellArgs {
     command: String,
     #[serde(default)]
     timeout_ms: Option<u64>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct WebFetchArgs {
+    url: String,
+    #[serde(default)]
+    timeout_ms: Option<u64>,
+    #[serde(default)]
+    max_bytes: Option<u64>,
+    #[serde(default)]
+    allow_private: bool,
 }
 
 fn validate_relative_path(user_path: &str) -> anyhow::Result<PathBuf> {
@@ -239,6 +332,91 @@ fn shell_def() -> ToolDefinition {
             }),
         },
     }
+}
+
+fn web_fetch_def() -> ToolDefinition {
+    ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "web_fetch".to_string(),
+            description: "Fetch a URL via HTTP(S) and return a small response body (SSRF-protected).".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "HTTP(S) URL to fetch." },
+                    "timeout_ms": { "type": "integer", "description": "Timeout in milliseconds (default 20000).", "minimum": 1 },
+                    "max_bytes": { "type": "integer", "description": "Maximum bytes to return (default 200000).", "minimum": 1 },
+                    "allow_private": { "type": "boolean", "description": "Allow fetching loopback/private IPs (default false)." }
+                },
+                "required": ["url"],
+                "additionalProperties": false
+            }),
+        },
+    }
+}
+
+async fn resolve_host_ips(host: &str, port: u16) -> anyhow::Result<Vec<IpAddr>> {
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Ok(vec![ip]);
+    }
+
+    let addrs = tokio::net::lookup_host((host, port))
+        .await
+        .context("dns lookup")?;
+
+    let mut ips = Vec::new();
+    for sa in addrs {
+        ips.push(sa.ip());
+    }
+
+    if ips.is_empty() {
+        bail!("no addresses found");
+    }
+
+    ips.sort();
+    ips.dedup();
+    Ok(ips)
+}
+
+fn is_forbidden_ip(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => is_forbidden_ipv4(v4),
+        IpAddr::V6(v6) => is_forbidden_ipv6(v6),
+    }
+}
+
+fn is_forbidden_ipv4(ip: Ipv4Addr) -> bool {
+    if ip.is_loopback()
+        || ip.is_private()
+        || ip.is_link_local()
+        || ip.is_multicast()
+        || ip.is_unspecified()
+    {
+        return true;
+    }
+
+    // Carrier-grade NAT: 100.64.0.0/10
+    let o = ip.octets();
+    if o[0] == 100 && (64..=127).contains(&o[1]) {
+        return true;
+    }
+
+    false
+}
+
+fn is_forbidden_ipv6(ip: Ipv6Addr) -> bool {
+    if ip.is_loopback()
+        || ip.is_unique_local()
+        || ip.is_unicast_link_local()
+        || ip.is_multicast()
+        || ip.is_unspecified()
+    {
+        return true;
+    }
+
+    // Site-local (deprecated): fec0::/10
+    let first = ip.segments()[0];
+    (first & 0xffc0) == 0xfec0
 }
 
 #[cfg(test)]
