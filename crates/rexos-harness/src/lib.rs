@@ -98,6 +98,49 @@ pub async fn bootstrap_with_prompt(
     Ok(())
 }
 
+pub async fn run_harness(
+    agent: &rexos_runtime::AgentRuntime,
+    workspace_dir: &Path,
+    session_id: &str,
+    user_prompt: &str,
+    max_attempts: usize,
+) -> anyhow::Result<String> {
+    preflight(workspace_dir)?;
+
+    let harness_system = coding_system_prompt();
+    let mut prompt = user_prompt.to_string();
+
+    for attempt in 1..=max_attempts.max(1) {
+        let out = agent
+            .run_session(
+                workspace_dir.to_path_buf(),
+                session_id,
+                Some(harness_system),
+                &prompt,
+                rexos_kernel::router::TaskKind::Coding,
+            )
+            .await?;
+
+        match run_init_sh_capture(workspace_dir) {
+            Ok(_) => {
+                commit_checkpoint_if_dirty(workspace_dir, "chore: rexos harness checkpoint")?;
+                return Ok(out);
+            }
+            Err(e) => {
+                if attempt >= max_attempts.max(1) {
+                    return Err(e);
+                }
+                prompt = format!(
+                    "init.sh failed after your changes.\n\nOutput:\n{}\n\nFix the issues and make `./init.sh` pass.",
+                    e
+                );
+            }
+        }
+    }
+
+    bail!("unreachable: harness loop exhausted")
+}
+
 pub fn preflight(workspace_dir: &Path) -> anyhow::Result<()> {
     let features_path = workspace_dir.join(FEATURES_JSON);
     let progress_path = workspace_dir.join(PROGRESS_MD);
@@ -245,6 +288,19 @@ Rules:
 "#
 }
 
+fn coding_system_prompt() -> &'static str {
+    r#"You are RexOS running a long-horizon harness coding session.
+
+Rules:
+- Work only inside the workspace directory.
+- Make small, incremental progress (one feature at a time).
+- Prefer using tools (`fs_read`, `fs_write`, `shell`) to inspect and change files.
+- If you change code, run the workspace's `init.sh` (smoke checks) and fix any failures.
+- Append a short summary to `rexos-progress.md`.
+- Commit meaningful progress to git with a descriptive message.
+"#
+}
+
 fn run_init_sh(workspace_dir: &Path) -> anyhow::Result<()> {
     let init_sh_path = workspace_dir.join(INIT_SH);
     let status = Command::new("bash")
@@ -256,6 +312,25 @@ fn run_init_sh(workspace_dir: &Path) -> anyhow::Result<()> {
         bail!("init.sh failed");
     }
     Ok(())
+}
+
+fn run_init_sh_capture(workspace_dir: &Path) -> anyhow::Result<String> {
+    let init_sh_path = workspace_dir.join(INIT_SH);
+    let output = Command::new("bash")
+        .arg(&init_sh_path)
+        .current_dir(workspace_dir)
+        .output()
+        .with_context(|| format!("run {}", init_sh_path.display()))?;
+
+    let mut combined = String::new();
+    combined.push_str(&String::from_utf8_lossy(&output.stdout));
+    combined.push_str(&String::from_utf8_lossy(&output.stderr));
+
+    if !output.status.success() {
+        bail!("init.sh failed: {}", combined.trim());
+    }
+
+    Ok(combined)
 }
 
 fn commit_checkpoint_if_dirty(workspace_dir: &Path, message: &str) -> anyhow::Result<()> {
