@@ -72,6 +72,69 @@ impl Default for RexosConfig {
                 default_model: "llama3.2".to_string(),
             },
         );
+        providers.insert(
+            "deepseek".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::OpenAiCompatible,
+                base_url: "https://api.deepseek.com/v1".to_string(),
+                api_key_env: "DEEPSEEK_API_KEY".to_string(),
+                default_model: "deepseek-chat".to_string(),
+            },
+        );
+        providers.insert(
+            "kimi".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::OpenAiCompatible,
+                base_url: "https://api.moonshot.cn/v1".to_string(),
+                api_key_env: "MOONSHOT_API_KEY".to_string(),
+                default_model: "moonshot-v1-8k".to_string(),
+            },
+        );
+        providers.insert(
+            "qwen".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::OpenAiCompatible,
+                base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string(),
+                api_key_env: "DASHSCOPE_API_KEY".to_string(),
+                default_model: "qwen-plus".to_string(),
+            },
+        );
+        providers.insert(
+            "glm".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::OpenAiCompatible,
+                base_url: "https://open.bigmodel.cn/api/paas/v4".to_string(),
+                api_key_env: "ZHIPUAI_API_KEY".to_string(),
+                default_model: "glm-5".to_string(),
+            },
+        );
+        providers.insert(
+            "minimax".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::OpenAiCompatible,
+                base_url: "https://api.minimax.io/v1".to_string(),
+                api_key_env: "MINIMAX_API_KEY".to_string(),
+                default_model: "MiniMax-Text-01".to_string(),
+            },
+        );
+        providers.insert(
+            "anthropic".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::Anthropic,
+                base_url: "https://api.anthropic.com".to_string(),
+                api_key_env: "ANTHROPIC_API_KEY".to_string(),
+                default_model: "claude-3-5-sonnet-latest".to_string(),
+            },
+        );
+        providers.insert(
+            "gemini".to_string(),
+            ProviderConfig {
+                kind: ProviderKind::Gemini,
+                base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
+                api_key_env: "GEMINI_API_KEY".to_string(),
+                default_model: "gemini-1.5-flash".to_string(),
+            },
+        );
 
         Self {
             llm: LlmConfig::default(),
@@ -192,6 +255,13 @@ mod tests {
         let cfg = RexosConfig::default();
         let toml_str = toml::to_string_pretty(&cfg).unwrap();
         assert!(toml_str.contains("[providers.ollama]"));
+        assert!(toml_str.contains("[providers.deepseek]"));
+        assert!(toml_str.contains("[providers.kimi]"));
+        assert!(toml_str.contains("[providers.qwen]"));
+        assert!(toml_str.contains("[providers.glm]"));
+        assert!(toml_str.contains("[providers.minimax]"));
+        assert!(toml_str.contains("[providers.anthropic]"));
+        assert!(toml_str.contains("[providers.gemini]"));
         assert!(toml_str.contains("kind = \"openai_compatible\""));
         assert!(toml_str.contains("base_url"));
         assert!(toml_str.contains("api_key_env"));
