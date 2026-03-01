@@ -4,6 +4,7 @@ site_url: https://os.rexai.top/
 
 repo_name: rexleimo/rexos
 repo_url: https://github.com/rexleimo/rexos
+edit_uri: edit/main/docs-site/
 
 docs_dir: docs-site
 site_dir: site
@@ -11,13 +12,24 @@ site_dir: site
 theme:
   name: material
   language: en
+  icon:
+    repo: fontawesome/brands/github
   features:
+    - navigation.instant
+    - navigation.tracking
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
+    - navigation.expand
+    - navigation.indexes
     - navigation.top
+    - header.autohide
+    - content.action.edit
+    - content.action.view
     - content.code.copy
     - search.highlight
     - search.suggest
+    - search.share
     - toc.follow
   palette:
     - scheme: default
@@ -38,14 +50,39 @@ plugins:
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - md_in_html
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.inlinehilite
   - pymdownx.highlight:
       anchor_linenums: true
       linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - toc:
       permalink: true
+
+extra_css:
+  - assets/stylesheets/extra.css
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10.9.1/dist/mermaid.min.js
+  - assets/javascripts/mermaid-init.js
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/rexleimo/rexos
 
 nav:
   - Home: index.md
@@ -56,6 +93,7 @@ nav:
       - Install & Update: how-to/install.md
       - Providers & Routing: how-to/providers.md
       - Common Use Cases: how-to/use-cases.md
+      - Troubleshooting: how-to/troubleshooting.md
       - Windows Notes: how-to/windows.md
       - Run the Daemon: how-to/daemon.md
   - Explanation:
@@ -71,5 +109,5 @@ nav:
       - Harness 长任务: zh/tutorials/harness-long-task.md
       - Providers 与路由: zh/how-to/providers.md
       - 常见场景: zh/how-to/use-cases.md
+      - 故障排查: zh/how-to/troubleshooting.md
       - Windows 说明: zh/how-to/windows.md
-

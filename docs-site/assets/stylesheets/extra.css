@@ -1,0 +1,24 @@
+/* RexOS docs polish (small, non-invasive). */
+
+.rexos-hero {
+  padding: 1.25rem 1.25rem 1.1rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(94, 53, 177, 0.20), transparent 55%),
+    radial-gradient(circle at 85% 85%, rgba(3, 169, 244, 0.18), transparent 55%);
+}
+
+.rexos-hero h1 {
+  margin-top: 0;
+}
+
+.rexos-hero .md-button {
+  margin-right: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.rexos-muted {
+  color: var(--md-default-fg-color--light);
+}
+

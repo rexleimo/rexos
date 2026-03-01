@@ -1,48 +1,71 @@
+<div class="rexos-hero" markdown>
+
 # RexOS
 
-RexOS is a long-running agent operating system: **persistent memory**, **sandboxed tools**, and **model routing**, plus an Anthropic-style **harness** for multi-session work.
+**Long-running Agent OS**: durable harness + SQLite memory + sandboxed tools + multi-provider routing.
 
-## What you can do with RexOS
+[Get started (Ollama)](tutorials/quickstart-ollama.md){ .md-button .md-button--primary }
+[Harness tutorial](tutorials/harness-long-task.md){ .md-button }
+[Providers & routing](how-to/providers.md){ .md-button }
+[Use cases](how-to/use-cases.md){ .md-button }
 
-- Keep an agent working across many runs (SQLite-backed session history + a durable workspace).
-- Run tools safely in a workspace sandbox (`fs_*`, `shell`, `web_fetch`).
-- Route different task types (planning/coding/summary) to different providers/models.
-- Use the harness to iterate on a checklist (`features.json`) with repeatable verification (`init.sh` / `init.ps1`) and git checkpoints.
+<p class="rexos-muted">
+Develop locally with small models on Ollama, then switch routing to GLM / MiniMax / DeepSeek / Kimi / Qwen when you need more capability.
+</p>
+
+</div>
+
+<div class="grid cards" markdown>
+
+- :material-checklist: **Harness-first long tasks**  
+  Work like “change → verify → checkpoint”, across many runs.  
+  [Learn harness](tutorials/harness-long-task.md)
+
+- :material-database: **SQLite-backed memory**  
+  Sessions, messages, and small KV state live in `~/.rexos/rexos.db`.  
+  [Concepts](explanation/concepts.md)
+
+- :material-shield-lock: **Sandboxed tools**  
+  Workspace-scoped file IO + shell + SSRF-protected `web_fetch`.  
+  [Security model](explanation/security.md)
+
+- :material-router: **Multi-provider routing**  
+  Route planning/coding/summary to different providers/models.  
+  [Configure providers](how-to/providers.md)
+
+</div>
 
 ## Quickstart (local, with Ollama)
 
-1) Install `rexos` (from GitHub Releases, or build from source).
-
-2) Start Ollama:
-
 ```bash
+# 1) Start Ollama
 ollama serve
-```
 
-3) Initialize RexOS (creates `~/.rexos/config.toml` + `~/.rexos/rexos.db`):
-
-```bash
+# 2) Init RexOS (~/.rexos/config.toml + ~/.rexos/rexos.db)
 rexos init
-```
 
-4) Run a session in a workspace directory:
-
-```bash
+# 3) Run a workspace session
 mkdir -p /tmp/rexos-work
 rexos agent run --workspace /tmp/rexos-work --prompt "Create hello.txt with the word hi"
 ```
 
-Next: read the tutorials for Harness-based long tasks.
+## How it works
 
-## Popular use cases
+```mermaid
+flowchart LR
+  U[You] -->|prompt| R[RexOS CLI]
+  R --> M[(SQLite memory)]
+  R --> W[(Workspace sandbox)]
+  R --> G[(Git checkpoints)]
+  R --> T[Tools: fs_read/fs_write/shell/web_fetch]
+  R --> X{Router}
+  X -->|planning| P[Small/local model]
+  X -->|coding| C[Stronger model]
+  X -->|summary| S[Cheap summarizer]
+```
 
-- “Keep improving this repo until the test suite passes” (harness + checkpoints).
-- “Apply the same change across many files safely” (workspace sandbox + git).
-- “Build a release pipeline and verify it” (tools + incremental commits).
-- “Try provider-native APIs (GLM/MiniMax/Qwen) but keep local dev on Ollama.”
+## Next steps
 
-## Links
-
-- Tutorials: see the left navigation.
-- Repo: use the “Edit on GitHub” button to contribute fixes quickly.
-
+- Learn the harness loop: `tutorials/harness-long-task.md`
+- Explore common recipes: `how-to/use-cases.md`
+- Switch providers (GLM/MiniMax native included): `how-to/providers.md`
