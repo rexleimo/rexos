@@ -1101,6 +1101,7 @@ dependencies = [
  "rexos-kernel",
  "rexos-runtime",
  "serde_json",
+ "uuid",
 ]
 
 [[package]]

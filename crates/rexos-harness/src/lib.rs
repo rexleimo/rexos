@@ -6,6 +6,8 @@ use anyhow::{bail, Context};
 const FEATURES_JSON: &str = "features.json";
 const PROGRESS_MD: &str = "rexos-progress.md";
 const INIT_SH: &str = "init.sh";
+const REXOS_DIR: &str = ".rexos";
+const SESSION_ID_FILE: &str = "session_id";
 
 pub fn init_workspace(workspace_dir: &Path) -> anyhow::Result<()> {
     std::fs::create_dir_all(workspace_dir)
@@ -68,6 +70,29 @@ echo "[rexos] init.sh: customize this script for your project"
     )?;
 
     Ok(())
+}
+
+pub fn resolve_session_id(workspace_dir: &Path) -> anyhow::Result<String> {
+    let rexos_dir = workspace_dir.join(REXOS_DIR);
+    std::fs::create_dir_all(&rexos_dir)
+        .with_context(|| format!("create {}", rexos_dir.display()))?;
+
+    ensure_gitignore_has_rexos_dir(workspace_dir)?;
+
+    let path = rexos_dir.join(SESSION_ID_FILE);
+    if path.exists() {
+        let raw =
+            std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?;
+        let s = raw.trim().to_string();
+        if s.is_empty() {
+            bail!("session_id file is empty");
+        }
+        return Ok(s);
+    }
+
+    let id = uuid::Uuid::new_v4().to_string();
+    std::fs::write(&path, format!("{id}\n")).with_context(|| format!("write {}", path.display()))?;
+    Ok(id)
 }
 
 pub async fn bootstrap_with_prompt(
@@ -268,6 +293,34 @@ fn is_initialized(workspace_dir: &Path) -> bool {
     workspace_dir.join(FEATURES_JSON).exists()
         && workspace_dir.join(PROGRESS_MD).exists()
         && workspace_dir.join(INIT_SH).exists()
+}
+
+fn ensure_gitignore_has_rexos_dir(workspace_dir: &Path) -> anyhow::Result<()> {
+    if !workspace_dir.join(".git").exists() {
+        return Ok(());
+    }
+
+    let path = workspace_dir.join(".gitignore");
+    let line = ".rexos/";
+
+    let mut content = if path.exists() {
+        std::fs::read_to_string(&path).with_context(|| format!("read {}", path.display()))?
+    } else {
+        String::new()
+    };
+
+    if content.lines().any(|l| l.trim() == line) {
+        return Ok(());
+    }
+
+    if !content.is_empty() && !content.ends_with('\n') {
+        content.push('\n');
+    }
+    content.push_str(line);
+    content.push('\n');
+
+    std::fs::write(&path, content).with_context(|| format!("write {}", path.display()))?;
+    Ok(())
 }
 
 fn initializer_system_prompt() -> &'static str {
