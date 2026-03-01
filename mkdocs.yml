@@ -67,6 +67,7 @@ plugins:
             Workflows: 工作流
             Long Task With Harness: Harness 长任务
             Common Use Cases: 常见场景
+            Browser Automation: 浏览器自动化
             Configuration: 配置
             Providers & Routing: Providers 与路由
             Operations: 运维
@@ -126,6 +127,7 @@ nav:
       - Workflows:
           - Long Task With Harness: tutorials/harness-long-task.md
           - Common Use Cases: how-to/use-cases.md
+          - Browser Automation: how-to/browser-automation.md
       - Configuration:
           - Providers & Routing: how-to/providers.md
       - Operations:

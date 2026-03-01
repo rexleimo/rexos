@@ -142,6 +142,8 @@ curl http://127.0.0.1:8787/healthz
 
 当你需要与动态网页交互（JS 渲染内容、点击、输入、截图）时，使用 `browser_*` 工具会更可靠。
 
+另见：[浏览器自动化（Playwright）](browser-automation.md)。
+
 ### 前置条件
 
 安装 Playwright（Python）：

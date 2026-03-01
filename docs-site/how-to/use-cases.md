@@ -142,6 +142,8 @@ Validate tool-calling + harness flow with Ollama first, then switch routing to b
 
 Use browser tools when you need to interact with dynamic pages (JS-rendered content, clicking, typing, screenshots).
 
+See also: [Browser Automation (Playwright)](browser-automation.md).
+
 ### Prerequisites
 
 Install Playwright (Python):
