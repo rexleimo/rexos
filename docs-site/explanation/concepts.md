@@ -26,6 +26,15 @@ The agent can call tools such as:
 - `fs_read` / `fs_write` (workspace-only, blocks `..` traversal)
 - `shell` (workspace-only)
 - `web_fetch` (SSRF-protected by default)
+- `browser_*` (headless browser automation via a Python Playwright bridge)
+
+!!! note "Browser tools prerequisites"
+    `browser_*` tools require Python + Playwright:
+
+    ```bash
+    python3 -m pip install playwright
+    python3 -m playwright install chromium
+    ```
 
 ## Model routing
 
@@ -45,4 +54,3 @@ The harness adds a workflow on top:
 2. run incremental sessions
 3. verify via `init.sh` / `init.ps1`
 4. checkpoint via git commits
-

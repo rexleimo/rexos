@@ -135,3 +135,29 @@ Use it for container readiness / supervision, and keep the rest of RexOS logic i
 ## 7) Local testing with small models (recommended)
 
 Validate tool-calling + harness flow with Ollama first, then switch routing to bigger models once the loop is stable.
+
+---
+
+## 8) Browser automation (Playwright bridge)
+
+Use browser tools when you need to interact with dynamic pages (JS-rendered content, clicking, typing, screenshots).
+
+### Prerequisites
+
+Install Playwright (Python):
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
+### Example: open a page, summarize, save artifacts
+
+```bash
+rexos agent run --workspace . --prompt "Use browser tools to open https://example.com, read the page, write a short summary to notes/example.md, and save a screenshot to .rexos/browser/example.png."
+```
+
+Notes:
+
+- `browser_navigate` is SSRF-checked by default (set `allow_private=true` only for local/private targets).
+- Screenshots write to workspace-relative paths (no absolute paths, no `..`, no symlink escapes).

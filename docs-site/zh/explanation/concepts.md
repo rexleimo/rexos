@@ -26,6 +26,15 @@ agent 可以调用工具，例如：
 - `fs_read` / `fs_write`（仅 workspace 内，阻止 `..`）
 - `shell`（仅 workspace 内）
 - `web_fetch`（默认 SSRF 防护）
+- `browser_*`（通过 Python Playwright bridge 进行无头浏览器自动化）
+
+!!! note "Browser 工具前置条件"
+    `browser_*` 工具需要 Python + Playwright：
+
+    ```bash
+    python3 -m pip install playwright
+    python3 -m playwright install chromium
+    ```
 
 ## 模型路由（Model routing）
 
@@ -45,4 +54,3 @@ harness 在此基础上加了一层“可持续推进”的工作流：
 2. 多次增量运行
 3. 通过 `init.sh` / `init.ps1` 做验证
 4. 通过 git commits 做 checkpoint
-

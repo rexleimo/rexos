@@ -135,3 +135,29 @@ curl http://127.0.0.1:8787/healthz
 ## 7) 本地小模型先跑通（推荐）
 
 先用 Ollama 小模型把工具调用 + harness 流程跑通、稳定下来，再把路由切到更强的云端模型跑大任务。
+
+---
+
+## 8) 浏览器自动化（Playwright bridge）
+
+当你需要与动态网页交互（JS 渲染内容、点击、输入、截图）时，使用 `browser_*` 工具会更可靠。
+
+### 前置条件
+
+安装 Playwright（Python）：
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
+### 示例：打开页面→读取→写总结→保存截图
+
+```bash
+rexos agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把简短总结写到 notes/example.md，并把截图保存到 .rexos/browser/example.png。"
+```
+
+注意：
+
+- `browser_navigate` 默认带 SSRF 防护（只有本地/私网目标才建议显式开启 `allow_private=true`）。
+- 截图只允许写到 workspace 相对路径（不允许绝对路径、不允许 `..`、不允许通过 symlink 逃逸）。
