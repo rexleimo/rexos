@@ -121,8 +121,9 @@ pub struct OpenAiCompatibleClient {
 impl OpenAiCompatibleClient {
     pub fn new(base_url: String, api_key: Option<String>) -> anyhow::Result<Self> {
         let base_url = base_url.trim_end_matches('/').to_string();
+        let timeout = openai_compat_timeout();
         let http = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
+            .timeout(timeout)
             .build()
             .context("build http client")?;
 
@@ -179,5 +180,16 @@ impl OpenAiCompatibleClient {
             tool_call_id: raw.tool_call_id,
             tool_calls,
         })
+    }
+}
+
+fn openai_compat_timeout() -> Duration {
+    const DEFAULT_SECS: u64 = 600;
+    match std::env::var("REXOS_OPENAI_COMPAT_TIMEOUT_SECS") {
+        Ok(raw) => match raw.trim().parse::<u64>() {
+            Ok(secs) if secs > 0 => Duration::from_secs(secs),
+            _ => Duration::from_secs(DEFAULT_SECS),
+        },
+        Err(_) => Duration::from_secs(DEFAULT_SECS),
     }
 }

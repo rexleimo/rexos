@@ -1150,6 +1150,8 @@ dependencies = [
  "rexos-llm",
  "rexos-memory",
  "rexos-tools",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

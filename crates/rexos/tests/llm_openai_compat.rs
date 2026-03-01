@@ -10,6 +10,28 @@ struct TestState {
     captured: Arc<Mutex<Option<serde_json::Value>>>,
 }
 
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: impl AsRef<std::ffi::OsStr>) -> Self {
+        let previous = std::env::var_os(key);
+        std::env::set_var(key, value);
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(v) => std::env::set_var(self.key, v),
+            None => std::env::remove_var(self.key),
+        }
+    }
+}
+
 #[tokio::test]
 async fn openai_compat_client_posts_and_parses_tool_calls() {
     async fn handler(
@@ -151,6 +173,56 @@ async fn openai_compat_client_parses_legacy_function_call_into_tool_call() {
     assert_eq!(calls[0].id, "call_1");
     assert_eq!(calls[0].function.name, "fs_read");
     assert_eq!(calls[0].function.arguments, "{\"path\":\"README.md\"}");
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn openai_compat_client_timeout_can_be_overridden_via_env() {
+    let _guard = EnvVarGuard::set("REXOS_OPENAI_COMPAT_TIMEOUT_SECS", "1");
+
+    async fn handler() -> Json<serde_json::Value> {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        Json(json!({
+            "choices": [{
+                "index": 0,
+                "message": { "role": "assistant", "content": "ok" },
+                "finish_reason": "stop"
+            }]
+        }))
+    }
+
+    let app = Router::new().route("/v1/chat/completions", post(handler));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    let client = rexos::llm::openai_compat::OpenAiCompatibleClient::new(
+        format!("http://{addr}/v1"),
+        None,
+    )
+    .unwrap();
+
+    let msg = rexos::llm::openai_compat::ChatMessage {
+        role: rexos::llm::openai_compat::Role::User,
+        content: Some("hello".to_string()),
+        name: None,
+        tool_call_id: None,
+        tool_calls: None,
+    };
+
+    let res = client
+        .chat_completions(rexos::llm::openai_compat::ChatCompletionRequest {
+            model: "test-model".to_string(),
+            messages: vec![msg],
+            tools: vec![],
+            temperature: None,
+        })
+        .await;
+
+    assert!(res.is_err(), "expected request to time out");
 
     server.abort();
 }
