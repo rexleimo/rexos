@@ -20,6 +20,11 @@ enum Command {
         #[command(subcommand)]
         command: HarnessCommand,
     },
+    /// Run RexOS daemon (HTTP API)
+    Daemon {
+        #[command(subcommand)]
+        command: DaemonCommand,
+    },
 }
 
 #[derive(Debug, clap::Subcommand)]
@@ -28,6 +33,16 @@ enum HarnessCommand {
     Init { dir: PathBuf },
     /// Run a harness preflight session (bearings + smoke checks)
     Run { dir: PathBuf },
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum DaemonCommand {
+    /// Start the daemon HTTP server
+    Start {
+        /// Listen address, e.g. 127.0.0.1:8787
+        #[arg(long, default_value = "127.0.0.1:8787")]
+        addr: String,
+    },
 }
 
 #[tokio::main]
@@ -49,6 +64,12 @@ async fn main() -> anyhow::Result<()> {
             }
             HarnessCommand::Run { dir } => {
                 rexos::harness::preflight(&dir)?;
+            }
+        },
+        Command::Daemon { command } => match command {
+            DaemonCommand::Start { addr } => {
+                let addr = addr.parse()?;
+                rexos::daemon::serve(addr).await?;
             }
         },
     }
