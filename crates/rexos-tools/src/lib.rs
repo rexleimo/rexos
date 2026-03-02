@@ -154,6 +154,11 @@ impl Toolset {
                     .context("parse speech_to_text arguments")?;
                 self.speech_to_text(&args.path)
             }
+            "text_to_speech" => {
+                let args: TextToSpeechArgs = serde_json::from_str(arguments_json)
+                    .context("parse text_to_speech arguments")?;
+                self.text_to_speech(&args.text, args.path.as_deref())
+            }
             "image_generate" => {
                 let args: ImageGenerateArgs = serde_json::from_str(arguments_json)
                     .context("parse image_generate arguments")?;
@@ -219,8 +224,8 @@ impl Toolset {
             | "channel_send" => {
                 bail!("tool '{name}' is implemented in the runtime, not Toolset")
             }
-            "text_to_speech" | "docker_exec" | "process_start" | "process_poll" | "process_write"
-            | "process_kill" | "process_list" | "canvas_present" => {
+            "docker_exec" | "process_start" | "process_poll" | "process_write" | "process_kill"
+            | "process_list" | "canvas_present" => {
                 bail!("tool not implemented yet: {name}")
             }
             _ => bail!("unknown tool: {name}"),
@@ -723,6 +728,67 @@ impl Toolset {
         .to_string())
     }
 
+    fn text_to_speech(&self, text: &str, path: Option<&str>) -> anyhow::Result<String> {
+        if text.trim().is_empty() {
+            bail!("text is empty");
+        }
+
+        let rel = path.unwrap_or(".rexos/audio/tts.wav");
+        let out_path = self.resolve_workspace_path_for_write(rel)?;
+        if out_path.extension().and_then(|x| x.to_str()).unwrap_or("") != "wav" {
+            bail!("text_to_speech currently only supports .wav output paths");
+        }
+
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create dirs {}", parent.display()))?;
+        }
+
+        let sample_rate: u32 = 16_000;
+        let duration_ms: u32 = 300;
+        let num_samples = (sample_rate as usize)
+            .saturating_mul(duration_ms as usize)
+            .saturating_div(1000);
+        let frequency_hz: f32 = 440.0;
+        let amplitude: f32 = 0.20;
+
+        let data_size = num_samples.saturating_mul(2);
+        let riff_size = 36u32.saturating_add(data_size as u32);
+
+        let mut bytes = Vec::with_capacity(44 + data_size);
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&riff_size.to_le_bytes());
+        bytes.extend_from_slice(b"WAVE");
+        bytes.extend_from_slice(b"fmt ");
+        bytes.extend_from_slice(&16u32.to_le_bytes()); // PCM fmt chunk size
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // PCM
+        bytes.extend_from_slice(&1u16.to_le_bytes()); // channels
+        bytes.extend_from_slice(&sample_rate.to_le_bytes());
+        let byte_rate = sample_rate.saturating_mul(2);
+        bytes.extend_from_slice(&byte_rate.to_le_bytes());
+        bytes.extend_from_slice(&2u16.to_le_bytes()); // block align
+        bytes.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&(data_size as u32).to_le_bytes());
+
+        for n in 0..num_samples {
+            let t = n as f32 / sample_rate as f32;
+            let s = (2.0 * std::f32::consts::PI * frequency_hz * t).sin();
+            let sample = (s * amplitude * i16::MAX as f32) as i16;
+            bytes.extend_from_slice(&sample.to_le_bytes());
+        }
+
+        std::fs::write(&out_path, &bytes).with_context(|| format!("write {}", out_path.display()))?;
+
+        Ok(serde_json::json!({
+            "path": rel,
+            "format": "wav",
+            "bytes": bytes.len(),
+            "note": "MVP: generates a short WAV tone (placeholder for real TTS).",
+        })
+        .to_string())
+    }
+
     fn image_generate(&self, prompt: &str, user_path: &str) -> anyhow::Result<String> {
         if prompt.trim().is_empty() {
             bail!("prompt is empty");
@@ -1210,6 +1276,13 @@ struct MediaTranscribeArgs {
 #[derive(Debug, serde::Deserialize)]
 struct SpeechToTextArgs {
     path: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct TextToSpeechArgs {
+    text: String,
+    #[serde(default)]
+    path: Option<String>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -2339,6 +2412,25 @@ fn compat_tool_defs() -> Vec<ToolDefinition> {
     defs.push(ToolDefinition {
         kind: "function".to_string(),
         function: ToolFunctionDefinition {
+            name: "text_to_speech".to_string(),
+            description: "Convert text to speech audio (MVP: writes a short .wav).".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "text": { "type": "string", "description": "Text to convert to speech." },
+                    "path": { "type": "string", "description": "Workspace-relative output path (use .wav). Optional." },
+                    "voice": { "type": "string", "description": "Optional voice name (ignored in MVP)." },
+                    "format": { "type": "string", "description": "Optional format (ignored in MVP; only .wav is supported)." }
+                },
+                "required": ["text"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
             name: "speech_to_text".to_string(),
             description: "Transcribe speech/audio into text (MVP: supports transcript files).".to_string(),
             parameters: json!({
@@ -2354,7 +2446,6 @@ fn compat_tool_defs() -> Vec<ToolDefinition> {
 
     // Reserved tool names (stubs in RexOS for now).
     for name in [
-        "text_to_speech",
         "docker_exec",
         "process_start",
         "process_poll",
@@ -2818,6 +2909,31 @@ mod tests {
             Some("hello world")
         );
         assert_eq!(v.get("text").and_then(|v| v.as_str()), Some("hello world"));
+    }
+
+    #[tokio::test]
+    async fn text_to_speech_writes_wav_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let tools = Toolset::new(workspace.clone()).unwrap();
+        let out = tools
+            .call(
+                "text_to_speech",
+                r#"{ "text": "hello", "path": "out.wav" }"#,
+            )
+            .await
+            .unwrap();
+
+        let v: serde_json::Value =
+            serde_json::from_str(&out).expect("text_to_speech output is json");
+        assert_eq!(v.get("path").and_then(|v| v.as_str()), Some("out.wav"));
+        assert_eq!(v.get("format").and_then(|v| v.as_str()), Some("wav"));
+
+        let bytes = std::fs::read(workspace.join("out.wav")).unwrap();
+        assert!(bytes.starts_with(b"RIFF"), "missing RIFF header");
+        assert!(bytes.windows(4).any(|w| w == b"WAVE"), "missing WAVE header");
     }
 
     #[tokio::test]
