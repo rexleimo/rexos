@@ -14,6 +14,8 @@ use rexos_llm::openai_compat::{ToolDefinition, ToolFunctionDefinition};
 const BROWSER_BRIDGE_SCRIPT: &str = include_str!("browser_bridge.py");
 static BROWSER_BRIDGE_PATH: OnceLock<PathBuf> = OnceLock::new();
 
+mod browser_cdp;
+
 #[derive(Debug, Clone)]
 pub struct Toolset {
     workspace_root: PathBuf,
@@ -575,6 +577,60 @@ impl Toolset {
         });
     }
 
+    fn decode_process_output(bytes: Vec<u8>) -> String {
+        if bytes.is_empty() {
+            return String::new();
+        }
+
+        // PowerShell often emits UTF-16LE when stdout is piped. If we treat that as UTF-8, we end
+        // up with NULs between characters and string matching becomes unreliable.
+        let nuls = bytes.iter().filter(|&&b| b == 0).count();
+        let nul_ratio = nuls as f32 / bytes.len() as f32;
+        if bytes.len() >= 4 && nul_ratio >= 0.20 {
+            // Detect endianness via which byte positions are mostly NUL.
+            let mut even_nuls = 0usize;
+            let mut odd_nuls = 0usize;
+            for (idx, b) in bytes.iter().enumerate() {
+                if *b == 0 {
+                    if idx % 2 == 0 {
+                        even_nuls += 1;
+                    } else {
+                        odd_nuls += 1;
+                    }
+                }
+            }
+
+            let pairs = (bytes.len() / 2).max(1) as f32;
+            let even_ratio = even_nuls as f32 / pairs;
+            let odd_ratio = odd_nuls as f32 / pairs;
+
+            let is_likely_le = odd_ratio > 0.60 && even_ratio < 0.40;
+            let is_likely_be = even_ratio > 0.60 && odd_ratio < 0.40;
+
+            if is_likely_le || is_likely_be {
+                let mut u16s = Vec::with_capacity(bytes.len() / 2);
+                let mut iter = bytes.chunks_exact(2);
+                for chunk in &mut iter {
+                    let v = if is_likely_be {
+                        u16::from_be_bytes([chunk[0], chunk[1]])
+                    } else {
+                        u16::from_le_bytes([chunk[0], chunk[1]])
+                    };
+                    u16s.push(v);
+                }
+
+                // Drop an initial BOM if present.
+                if u16s.first() == Some(&0xFEFF) {
+                    u16s.remove(0);
+                }
+
+                return String::from_utf16_lossy(&u16s);
+            }
+        }
+
+        String::from_utf8_lossy(&bytes).to_string()
+    }
+
     async fn process_start(&self, command: &str, args: &[String]) -> anyhow::Result<String> {
         if command.trim().is_empty() {
             bail!("command is empty");
@@ -678,12 +734,12 @@ impl Toolset {
         let stdout = {
             let mut buf = stdout_buf.lock().await;
             let bytes = std::mem::take(&mut *buf);
-            String::from_utf8_lossy(&bytes).to_string()
+            Self::decode_process_output(bytes)
         };
         let stderr = {
             let mut buf = stderr_buf.lock().await;
             let bytes = std::mem::take(&mut *buf);
-            String::from_utf8_lossy(&bytes).to_string()
+            Self::decode_process_output(bytes)
         };
 
         Ok(serde_json::json!({
@@ -1261,35 +1317,60 @@ impl Toolset {
             }
         }
 
+        let backend = browser_backend_default();
+
         let mut guard = self.browser.lock().await;
         if guard.is_none() {
             let headless = headless.unwrap_or_else(browser_headless_default);
-            *guard = Some(BrowserSession::spawn(headless).await?);
-        } else if let Some(requested) = headless {
-            let session_headless = guard.as_ref().map(|s| s.headless).unwrap_or(true);
-            if session_headless != requested {
+            let session = match backend {
+                BrowserBackend::Cdp => {
+                    let s = browser_cdp::CdpBrowserSession::connect_or_launch(
+                        self.http.clone(),
+                        headless,
+                        allow_private,
+                    )
+                    .await?;
+                    BrowserSession::Cdp(s)
+                }
+                BrowserBackend::Playwright => {
+                    BrowserSession::Playwright(PlaywrightBrowserSession::spawn(
+                        headless,
+                        allow_private,
+                    )
+                    .await?)
+                }
+            };
+            *guard = Some(session);
+        } else {
+            let session = guard.as_ref().expect("checked none");
+            if session.backend() != backend {
                 bail!(
-                    "browser session already started with headless={session_headless}; call browser_close before starting a new session with headless={requested}"
+                    "browser session already started with backend={:?}; call browser_close before switching to backend={:?}",
+                    session.backend(),
+                    backend
                 );
+            }
+
+            if let Some(requested) = headless {
+                let session_headless = session.headless();
+                if session_headless != requested {
+                    bail!(
+                        "browser session already started with headless={session_headless}; call browser_close before starting a new session with headless={requested}"
+                    );
+                }
             }
         }
 
         let session = guard.as_mut().expect("set above");
-        let resp = session
-            .send(serde_json::json!({
-                "action": "Navigate",
-                "url": url.as_str(),
-            }))
-            .await?;
-
-        Ok(resp.into_tool_output()?)
+        session.set_allow_private(allow_private);
+        let out = session.navigate(url.as_str()).await?;
+        Ok(out.to_string())
     }
 
     async fn browser_close(&self) -> anyhow::Result<String> {
         let mut guard = self.browser.lock().await;
         if let Some(mut session) = guard.take() {
-            let _ = session.send(serde_json::json!({ "action": "Close" })).await;
-            session.kill().await;
+            session.close().await;
         }
         Ok("ok".to_string())
     }
@@ -1299,13 +1380,11 @@ impl Toolset {
         let session = guard
             .as_mut()
             .context("browser session not started; call browser_navigate first")?;
-        let resp = session
-            .send(serde_json::json!({
-                "action": "Click",
-                "selector": selector,
-            }))
-            .await?;
-        Ok(resp.into_tool_output()?)
+        let out = session.click(selector).await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
+        }
+        Ok(out.to_string())
     }
 
     async fn browser_type(&self, selector: &str, text: &str) -> anyhow::Result<String> {
@@ -1313,14 +1392,8 @@ impl Toolset {
         let session = guard
             .as_mut()
             .context("browser session not started; call browser_navigate first")?;
-        let resp = session
-            .send(serde_json::json!({
-                "action": "Type",
-                "selector": selector,
-                "text": text,
-            }))
-            .await?;
-        Ok(resp.into_tool_output()?)
+        let out = session.type_text(selector, text).await?;
+        Ok(out.to_string())
     }
 
     async fn browser_press_key(&self, selector: Option<&str>, key: &str) -> anyhow::Result<String> {
@@ -1328,17 +1401,11 @@ impl Toolset {
         let session = guard
             .as_mut()
             .context("browser session not started; call browser_navigate first")?;
-
-        let mut cmd = serde_json::json!({
-            "action": "PressKey",
-            "key": key,
-        });
-        if let Some(sel) = selector {
-            cmd["selector"] = serde_json::Value::String(sel.to_string());
+        let out = session.press_key(selector, key).await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
         }
-
-        let resp = session.send(cmd).await?;
-        Ok(resp.into_tool_output()?)
+        Ok(out.to_string())
     }
 
     async fn browser_wait_for(
@@ -1355,23 +1422,11 @@ impl Toolset {
         let session = guard
             .as_mut()
             .context("browser session not started; call browser_navigate first")?;
-
-        let mut cmd = serde_json::json!({
-            "action": "WaitFor",
-        });
-
-        if let Some(selector) = selector {
-            cmd["selector"] = serde_json::Value::String(selector.to_string());
+        let out = session.wait_for(selector, text, timeout_ms).await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
         }
-        if let Some(text) = text {
-            cmd["text"] = serde_json::Value::String(text.to_string());
-        }
-        if let Some(timeout_ms) = timeout_ms {
-            cmd["timeout_ms"] = serde_json::Value::Number(timeout_ms.into());
-        }
-
-        let resp = session.send(cmd).await?;
-        Ok(resp.into_tool_output()?)
+        Ok(out.to_string())
     }
 
     async fn browser_read_page(&self) -> anyhow::Result<String> {
@@ -1379,10 +1434,11 @@ impl Toolset {
         let session = guard
             .as_mut()
             .context("browser session not started; call browser_navigate first")?;
-        let resp = session
-            .send(serde_json::json!({ "action": "ReadPage" }))
-            .await?;
-        Ok(resp.into_tool_output()?)
+        let out = session.read_page().await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
+        }
+        Ok(out.to_string())
     }
 
     async fn browser_screenshot(&self, path: Option<&str>) -> anyhow::Result<String> {
@@ -1390,16 +1446,15 @@ impl Toolset {
         let session = guard
             .as_mut()
             .context("browser session not started; call browser_navigate first")?;
-
-        let resp = session
-            .send(serde_json::json!({ "action": "Screenshot" }))
-            .await?;
-        let data = resp.into_data()?;
+        let data = session.screenshot().await?;
+        if let Some(url) = data.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
+        }
 
         let b64 = data
             .get("image_base64")
             .and_then(|v| v.as_str())
-            .context("bridge response missing image_base64")?;
+            .context("screenshot response missing image_base64")?;
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(b64)
             .context("decode screenshot base64")?;
@@ -1488,21 +1543,42 @@ impl BridgeResponse {
     }
 }
 
-struct BrowserSession {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BrowserBackend {
+    Cdp,
+    Playwright,
+}
+
+fn browser_backend_default() -> BrowserBackend {
+    if let Ok(v) = std::env::var("REXOS_BROWSER_BACKEND") {
+        match v.trim().to_ascii_lowercase().as_str() {
+            "cdp" | "native" | "chromium" => return BrowserBackend::Cdp,
+            "playwright" | "bridge" | "python" => return BrowserBackend::Playwright,
+            _ => {}
+        }
+    }
+    BrowserBackend::Cdp
+}
+
+struct PlaywrightBrowserSession {
     headless: bool,
+    allow_private: bool,
     child: tokio::process::Child,
     stdin: tokio::process::ChildStdin,
     stdout: BufReader<tokio::process::ChildStdout>,
 }
 
-impl std::fmt::Debug for BrowserSession {
+impl std::fmt::Debug for PlaywrightBrowserSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("BrowserSession").finish_non_exhaustive()
+        f.debug_struct("PlaywrightBrowserSession")
+            .field("headless", &self.headless)
+            .field("allow_private", &self.allow_private)
+            .finish_non_exhaustive()
     }
 }
 
-impl BrowserSession {
-    async fn spawn(headless: bool) -> anyhow::Result<Self> {
+impl PlaywrightBrowserSession {
+    async fn spawn(headless: bool, allow_private: bool) -> anyhow::Result<Self> {
         let python = browser_python_exe();
         let script_path = browser_bridge_script_path()?;
 
@@ -1525,6 +1601,7 @@ impl BrowserSession {
 
         let mut session = Self {
             headless,
+            allow_private,
             child,
             stdin,
             stdout: BufReader::new(stdout),
@@ -1577,9 +1654,191 @@ impl BrowserSession {
     }
 }
 
-impl Drop for BrowserSession {
+impl Drop for PlaywrightBrowserSession {
     fn drop(&mut self) {
         let _ = self.child.start_kill();
+    }
+}
+
+enum BrowserSession {
+    Cdp(browser_cdp::CdpBrowserSession),
+    Playwright(PlaywrightBrowserSession),
+}
+
+impl std::fmt::Debug for BrowserSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Cdp(s) => f
+                .debug_struct("BrowserSession")
+                .field("backend", &"cdp")
+                .field("headless", &s.headless)
+                .field("allow_private", &s.allow_private)
+                .finish(),
+            Self::Playwright(s) => f
+                .debug_struct("BrowserSession")
+                .field("backend", &"playwright")
+                .field("headless", &s.headless)
+                .field("allow_private", &s.allow_private)
+                .finish(),
+        }
+    }
+}
+
+impl BrowserSession {
+    fn backend(&self) -> BrowserBackend {
+        match self {
+            Self::Cdp(_) => BrowserBackend::Cdp,
+            Self::Playwright(_) => BrowserBackend::Playwright,
+        }
+    }
+
+    fn headless(&self) -> bool {
+        match self {
+            Self::Cdp(s) => s.headless,
+            Self::Playwright(s) => s.headless,
+        }
+    }
+
+    fn allow_private(&self) -> bool {
+        match self {
+            Self::Cdp(s) => s.allow_private,
+            Self::Playwright(s) => s.allow_private,
+        }
+    }
+
+    fn set_allow_private(&mut self, allow_private: bool) {
+        match self {
+            Self::Cdp(s) => s.allow_private = allow_private,
+            Self::Playwright(s) => s.allow_private = allow_private,
+        }
+    }
+
+    async fn navigate(&mut self, url: &str) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => {
+                let mut v = s.navigate(url).await?;
+                if let Some(obj) = v.as_object_mut() {
+                    obj.insert("headless".to_string(), serde_json::Value::Bool(s.headless));
+                }
+                Ok(v)
+            }
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({
+                    "action": "Navigate",
+                    "url": url,
+                }))
+                .await?
+                .into_data()
+                .map(|mut v| {
+                    if let Some(obj) = v.as_object_mut() {
+                        obj.insert("headless".to_string(), serde_json::Value::Bool(s.headless));
+                    }
+                    v
+                })?),
+        }
+    }
+
+    async fn click(&mut self, selector: &str) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.click(selector).await,
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({
+                    "action": "Click",
+                    "selector": selector,
+                }))
+                .await?
+                .into_data()?),
+        }
+    }
+
+    async fn type_text(&mut self, selector: &str, text: &str) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.type_text(selector, text).await,
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({
+                    "action": "Type",
+                    "selector": selector,
+                    "text": text,
+                }))
+                .await?
+                .into_data()?),
+        }
+    }
+
+    async fn press_key(
+        &mut self,
+        selector: Option<&str>,
+        key: &str,
+    ) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.press_key(selector, key).await,
+            Self::Playwright(s) => {
+                let mut cmd = serde_json::json!({
+                    "action": "PressKey",
+                    "key": key,
+                });
+                if let Some(sel) = selector {
+                    cmd["selector"] = serde_json::Value::String(sel.to_string());
+                }
+                Ok(s.send(cmd).await?.into_data()?)
+            }
+        }
+    }
+
+    async fn wait_for(
+        &mut self,
+        selector: Option<&str>,
+        text: Option<&str>,
+        timeout_ms: Option<u64>,
+    ) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.wait_for(selector, text, timeout_ms).await,
+            Self::Playwright(s) => {
+                let mut cmd = serde_json::json!({ "action": "WaitFor" });
+                if let Some(selector) = selector {
+                    cmd["selector"] = serde_json::Value::String(selector.to_string());
+                }
+                if let Some(text) = text {
+                    cmd["text"] = serde_json::Value::String(text.to_string());
+                }
+                if let Some(timeout_ms) = timeout_ms {
+                    cmd["timeout_ms"] = serde_json::Value::Number(timeout_ms.into());
+                }
+                Ok(s.send(cmd).await?.into_data()?)
+            }
+        }
+    }
+
+    async fn read_page(&mut self) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.read_page().await,
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({ "action": "ReadPage" }))
+                .await?
+                .into_data()?),
+        }
+    }
+
+    async fn screenshot(&mut self) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.screenshot().await,
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({ "action": "Screenshot" }))
+                .await?
+                .into_data()?),
+        }
+    }
+
+    async fn close(&mut self) {
+        match self {
+            Self::Cdp(s) => {
+                s.close().await;
+            }
+            Self::Playwright(s) => {
+                let _ = s.send(serde_json::json!({ "action": "Close" })).await;
+                s.kill().await;
+            }
+        }
     }
 }
 
@@ -3404,6 +3663,35 @@ async fn resolve_host_ips(host: &str, port: u16) -> anyhow::Result<Vec<IpAddr>> 
     Ok(ips)
 }
 
+async fn ensure_browser_url_allowed(url: &str, allow_private: bool) -> anyhow::Result<()> {
+    if allow_private {
+        return Ok(());
+    }
+
+    let url = match reqwest::Url::parse(url) {
+        Ok(v) => v,
+        Err(_) => return Ok(()),
+    };
+
+    match url.scheme() {
+        "http" | "https" => {}
+        _ => return Ok(()),
+    }
+
+    let Some(host) = url.host_str() else { return Ok(()) };
+    let Some(port) = url.port_or_known_default() else { return Ok(()) };
+
+    let ips = resolve_host_ips(host, port)
+        .await
+        .with_context(|| format!("resolve {host}:{port}"))?;
+    for ip in ips {
+        if is_forbidden_ip(ip) {
+            bail!("url resolves to loopback/private address: {ip}");
+        }
+    }
+    Ok(())
+}
+
 fn is_forbidden_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => is_forbidden_ipv4(v4),
@@ -3455,6 +3743,19 @@ mod tests {
     use std::sync::Mutex;
 
     static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    #[test]
+    fn decode_process_output_decodes_utf16le_like_powershell() {
+        // PowerShell commonly emits UTF-16LE when stdout/stderr is piped.
+        let mut bytes = Vec::new();
+        for b in b"READY\r\n" {
+            bytes.push(*b);
+            bytes.push(0);
+        }
+
+        let out = Toolset::decode_process_output(bytes);
+        assert!(out.contains("READY"), "{out:?}");
+    }
 
     #[test]
     fn validate_relative_path_rejects_parent_and_absolute() {
@@ -3842,7 +4143,7 @@ mod tests {
 
     #[tokio::test]
     async fn docker_exec_is_disabled_by_default() {
-        let _lock = ENV_LOCK.lock().unwrap();
+        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
         let previous = std::env::var_os("REXOS_DOCKER_EXEC_ENABLED");
         std::env::remove_var("REXOS_DOCKER_EXEC_ENABLED");
@@ -4273,7 +4574,7 @@ mod tests {
 
     #[tokio::test]
     async fn browser_tools_work_with_stub_bridge() {
-        let _lock = ENV_LOCK.lock().unwrap();
+        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
         let tmp = tempfile::tempdir().unwrap();
         let workspace = tmp.path().join("ws");
@@ -4283,6 +4584,7 @@ mod tests {
         std::fs::write(&bridge_path, stub_bridge_script()).unwrap();
 
         let python = if cfg!(windows) { "python" } else { "python3" };
+        let _backend_guard = EnvVarGuard::set("REXOS_BROWSER_BACKEND", "playwright");
         let _python_guard = EnvVarGuard::set("REXOS_BROWSER_PYTHON", python);
         let _bridge_guard = EnvVarGuard::set("REXOS_BROWSER_BRIDGE_PATH", bridge_path.as_os_str());
 
@@ -4334,7 +4636,7 @@ mod tests {
 
     #[tokio::test]
     async fn browser_navigate_honors_headless_flag() {
-        let _lock = ENV_LOCK.lock().unwrap();
+        let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 
         let tmp = tempfile::tempdir().unwrap();
         let workspace = tmp.path().join("ws");
@@ -4344,6 +4646,7 @@ mod tests {
         std::fs::write(&bridge_path, stub_bridge_script()).unwrap();
 
         let python = if cfg!(windows) { "python" } else { "python3" };
+        let _backend_guard = EnvVarGuard::set("REXOS_BROWSER_BACKEND", "playwright");
         let _python_guard = EnvVarGuard::set("REXOS_BROWSER_PYTHON", python);
         let _bridge_guard = EnvVarGuard::set("REXOS_BROWSER_BRIDGE_PATH", bridge_path.as_os_str());
 

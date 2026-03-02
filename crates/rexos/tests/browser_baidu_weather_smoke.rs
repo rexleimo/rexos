@@ -50,7 +50,7 @@ async fn browser_baidu_search_weather_and_summarize_with_ollama_smoke() {
             .to_string(),
         )
         .await
-        .expect("browser_navigate should succeed (requires Python + Playwright)");
+        .expect("browser_navigate should succeed (requires a Chromium-based browser; default backend is CDP)");
     let nav_v: serde_json::Value = serde_json::from_str(&nav).unwrap();
     assert!(
         nav_v
