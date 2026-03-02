@@ -113,6 +113,22 @@ impl Toolset {
                     serde_json::from_str(arguments_json).context("parse web_search arguments")?;
                 self.web_search(&args.query, args.max_results).await
             }
+            "a2a_discover" => {
+                let args: A2aDiscoverArgs = serde_json::from_str(arguments_json)
+                    .context("parse a2a_discover arguments")?;
+                self.a2a_discover(&args.url, args.allow_private).await
+            }
+            "a2a_send" => {
+                let args: A2aSendArgs =
+                    serde_json::from_str(arguments_json).context("parse a2a_send arguments")?;
+                let url = args
+                    .agent_url
+                    .as_deref()
+                    .or(args.url.as_deref())
+                    .context("missing agent_url (or url) for a2a_send")?;
+                self.a2a_send(url, &args.message, args.session_id.as_deref(), args.allow_private)
+                    .await
+            }
             "image_analyze" => {
                 let args: ImageAnalyzeArgs = serde_json::from_str(arguments_json)
                     .context("parse image_analyze arguments")?;
@@ -198,9 +214,8 @@ impl Toolset {
             | "channel_send" => {
                 bail!("tool '{name}' is implemented in the runtime, not Toolset")
             }
-            "a2a_discover" | "a2a_send" | "text_to_speech" | "speech_to_text" | "docker_exec"
-            | "process_start" | "process_poll" | "process_write" | "process_kill" | "process_list"
-            | "canvas_present" => {
+            "text_to_speech" | "speech_to_text" | "docker_exec" | "process_start" | "process_poll"
+            | "process_write" | "process_kill" | "process_list" | "canvas_present" => {
                 bail!("tool not implemented yet: {name}")
             }
             _ => bail!("unknown tool: {name}"),
@@ -399,6 +414,123 @@ impl Toolset {
             ));
         }
         Ok(out)
+    }
+
+    async fn a2a_discover(&self, url: &str, allow_private: bool) -> anyhow::Result<String> {
+        let mut url = reqwest::Url::parse(url).context("parse url")?;
+        match url.scheme() {
+            "http" | "https" => {}
+            _ => bail!("only http/https urls are allowed"),
+        }
+
+        let host = url.host_str().context("url missing host")?;
+        let port = url.port_or_known_default().context("url missing port")?;
+
+        if !allow_private {
+            let ips = resolve_host_ips(host, port)
+                .await
+                .with_context(|| format!("resolve {host}:{port}"))?;
+            for ip in ips {
+                if is_forbidden_ip(ip) {
+                    bail!("url resolves to loopback/private address: {ip}");
+                }
+            }
+        }
+
+        url.set_path("/.well-known/agent.json");
+        url.set_query(None);
+        url.set_fragment(None);
+
+        let resp = self
+            .http
+            .get(url.clone())
+            .header("User-Agent", "RexOS/0.1 A2A")
+            .send()
+            .await
+            .context("send a2a_discover request")?;
+
+        if !resp.status().is_success() {
+            bail!("a2a_discover http {}", resp.status());
+        }
+
+        let bytes = resp
+            .bytes()
+            .await
+            .context("read a2a_discover response body")?;
+        if bytes.len() > 200_000 {
+            bail!("agent card too large: {} bytes", bytes.len());
+        }
+
+        let v: serde_json::Value =
+            serde_json::from_slice(&bytes).context("parse agent card json")?;
+        Ok(serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string()))
+    }
+
+    async fn a2a_send(
+        &self,
+        agent_url: &str,
+        message: &str,
+        session_id: Option<&str>,
+        allow_private: bool,
+    ) -> anyhow::Result<String> {
+        if message.trim().is_empty() {
+            bail!("message is empty");
+        }
+
+        let url = reqwest::Url::parse(agent_url).context("parse agent_url")?;
+        match url.scheme() {
+            "http" | "https" => {}
+            _ => bail!("only http/https urls are allowed"),
+        }
+
+        let host = url.host_str().context("url missing host")?;
+        let port = url.port_or_known_default().context("url missing port")?;
+
+        if !allow_private {
+            let ips = resolve_host_ips(host, port)
+                .await
+                .with_context(|| format!("resolve {host}:{port}"))?;
+            for ip in ips {
+                if is_forbidden_ip(ip) {
+                    bail!("url resolves to loopback/private address: {ip}");
+                }
+            }
+        }
+
+        let request = serde_json::json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "tasks/send",
+            "params": {
+                "message": {
+                    "role": "user",
+                    "parts": [{ "type": "text", "text": message }]
+                },
+                "sessionId": session_id,
+            }
+        });
+
+        let resp = self
+            .http
+            .post(url.clone())
+            .header("User-Agent", "RexOS/0.1 A2A")
+            .json(&request)
+            .send()
+            .await
+            .context("send a2a_send request")?;
+
+        if !resp.status().is_success() {
+            bail!("a2a_send http {}", resp.status());
+        }
+
+        let v: serde_json::Value = resp.json().await.context("parse a2a_send response")?;
+        if let Some(result) = v.get("result") {
+            return Ok(serde_json::to_string_pretty(result).unwrap_or_else(|_| result.to_string()));
+        }
+        if let Some(err) = v.get("error") {
+            bail!("a2a_send error: {err}");
+        }
+        bail!("invalid a2a_send response")
     }
 
     async fn web_fetch(
@@ -1014,6 +1146,26 @@ struct WebSearchArgs {
     query: String,
     #[serde(default)]
     max_results: Option<u32>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct A2aDiscoverArgs {
+    url: String,
+    #[serde(default)]
+    allow_private: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct A2aSendArgs {
+    #[serde(default)]
+    agent_url: Option<String>,
+    #[serde(default)]
+    url: Option<String>,
+    message: String,
+    #[serde(default)]
+    session_id: Option<String>,
+    #[serde(default)]
+    allow_private: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -2118,10 +2270,45 @@ fn compat_tool_defs() -> Vec<ToolDefinition> {
         },
     });
 
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "a2a_discover".to_string(),
+            description: "Discover an external A2A agent by fetching its agent card at `/.well-known/agent.json`.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "Base URL of the remote agent (http/https)." },
+                    "allow_private": { "type": "boolean", "description": "Allow loopback/private IPs (default false)." }
+                },
+                "required": ["url"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "a2a_send".to_string(),
+            description: "Send a JSON-RPC `tasks/send` request to an external A2A agent endpoint.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "agent_url": { "type": "string", "description": "Full JSON-RPC endpoint URL (http/https)." },
+                    "url": { "type": "string", "description": "Alias for agent_url." },
+                    "message": { "type": "string", "description": "Message to send to the remote agent." },
+                    "session_id": { "type": "string", "description": "Optional session id for continuity." },
+                    "allow_private": { "type": "boolean", "description": "Allow loopback/private IPs (default false)." }
+                },
+                "required": ["message"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
     // Reserved tool names (stubs in RexOS for now).
     for name in [
-        "a2a_discover",
-        "a2a_send",
         "text_to_speech",
         "speech_to_text",
         "docker_exec",
@@ -2389,6 +2576,9 @@ fn is_forbidden_ipv6(ip: Ipv6Addr) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::extract::State;
+    use axum::routing::{get, post};
+    use axum::{Json, Router};
     use std::ffi::OsString;
     use std::sync::Mutex;
 
@@ -2594,6 +2784,135 @@ mod tests {
         let err = tools.call("hand_list", r#"{}"#).await.unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("runtime"), "{msg}");
+    }
+
+    #[tokio::test]
+    async fn a2a_discover_denies_loopback_by_default() {
+        let tmp = tempfile::tempdir().unwrap();
+        let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
+        let err = tools
+            .call("a2a_discover", r#"{ "url": "http://127.0.0.1:1/" }"#)
+            .await
+            .unwrap_err();
+
+        let msg = err.to_string();
+        assert!(
+            msg.contains("loopback") || msg.contains("private") || msg.contains("denied"),
+            "{msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a2a_discover_fetches_agent_card_when_allow_private_true() {
+        async fn handler() -> Json<serde_json::Value> {
+            Json(serde_json::json!({
+                "name": "demo-agent",
+                "description": "demo",
+                "url": "http://example.invalid/a2a",
+                "version": "1.0",
+                "capabilities": { "streaming": false, "pushNotifications": false, "stateTransitionHistory": false },
+                "skills": [],
+                "defaultInputModes": ["text"],
+                "defaultOutputModes": ["text"]
+            }))
+        }
+
+        let app = Router::new().route("/.well-known/agent.json", get(handler));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let tmp = tempfile::tempdir().unwrap();
+        let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
+        let out = tools
+            .call(
+                "a2a_discover",
+                &format!(
+                    r#"{{ "url": "http://127.0.0.1:{}/", "allow_private": true }}"#,
+                    addr.port()
+                ),
+            )
+            .await
+            .unwrap();
+
+        let v: serde_json::Value = serde_json::from_str(&out).expect("a2a_discover output is json");
+        assert_eq!(v.get("name").and_then(|v| v.as_str()), Some("demo-agent"));
+
+        server.abort();
+    }
+
+    #[derive(Clone, Default)]
+    struct A2aSendState {
+        last_method: std::sync::Arc<std::sync::Mutex<Option<String>>>,
+    }
+
+    #[tokio::test]
+    async fn a2a_send_posts_jsonrpc_and_returns_result() {
+        async fn handler(
+            State(state): State<A2aSendState>,
+            Json(payload): Json<serde_json::Value>,
+        ) -> Json<serde_json::Value> {
+            let method = payload
+                .get("method")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            *state.last_method.lock().unwrap() = Some(method.clone());
+
+            if method != "tasks/send" {
+                return Json(serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "error": { "message": "unexpected method" }
+                }));
+            }
+
+            Json(serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "id": "task-1",
+                    "status": "Completed",
+                    "messages": [{"role":"agent","parts":[{"type":"text","text":"ok"}]}],
+                    "artifacts": []
+                }
+            }))
+        }
+
+        let state = A2aSendState::default();
+        let app = Router::new()
+            .route("/a2a", post(handler))
+            .with_state(state.clone());
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let tmp = tempfile::tempdir().unwrap();
+        let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
+        let out = tools
+            .call(
+                "a2a_send",
+                &format!(
+                    r#"{{ "agent_url": "http://127.0.0.1:{}/a2a", "message": "hello", "allow_private": true }}"#,
+                    addr.port()
+                ),
+            )
+            .await
+            .unwrap();
+
+        let v: serde_json::Value = serde_json::from_str(&out).expect("a2a_send output is json");
+        assert_eq!(v.get("id").and_then(|v| v.as_str()), Some("task-1"), "{v}");
+        assert_eq!(
+            state.last_method.lock().unwrap().as_deref(),
+            Some("tasks/send")
+        );
+
+        server.abort();
     }
 
     #[tokio::test]
