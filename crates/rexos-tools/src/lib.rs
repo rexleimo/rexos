@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::path::{Component, Path, PathBuf};
 use std::process::Stdio;
@@ -6,7 +7,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Context};
 use base64::Engine as _;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 
 use rexos_llm::openai_compat::{ToolDefinition, ToolFunctionDefinition};
 
@@ -18,6 +19,47 @@ pub struct Toolset {
     workspace_root: PathBuf,
     http: reqwest::Client,
     browser: Arc<tokio::sync::Mutex<Option<BrowserSession>>>,
+    processes: Arc<tokio::sync::Mutex<ProcessManager>>,
+}
+
+const PROCESS_MAX_PROCESSES: usize = 5;
+const PROCESS_OUTPUT_MAX_BYTES: usize = 200_000;
+
+struct ProcessManager {
+    processes: HashMap<String, Arc<tokio::sync::Mutex<ProcessEntry>>>,
+}
+
+impl std::fmt::Debug for ProcessManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProcessManager")
+            .field("processes", &self.processes.len())
+            .finish()
+    }
+}
+
+impl ProcessManager {
+    fn new() -> Self {
+        Self {
+            processes: HashMap::new(),
+        }
+    }
+}
+
+struct ProcessEntry {
+    command: String,
+    args: Vec<String>,
+    started_at: std::time::Instant,
+    exit_code: Option<i32>,
+    child: tokio::process::Child,
+    stdin: Option<tokio::process::ChildStdin>,
+    stdout: Arc<tokio::sync::Mutex<Vec<u8>>>,
+    stderr: Arc<tokio::sync::Mutex<Vec<u8>>>,
+}
+
+impl Drop for ProcessEntry {
+    fn drop(&mut self) {
+        let _ = self.child.start_kill();
+    }
 }
 
 impl Toolset {
@@ -34,6 +76,7 @@ impl Toolset {
             workspace_root,
             http,
             browser: Arc::new(tokio::sync::Mutex::new(None)),
+            processes: Arc::new(tokio::sync::Mutex::new(ProcessManager::new())),
         })
     }
 
@@ -102,6 +145,31 @@ impl Toolset {
                     .context("parse docker_exec arguments")?;
                 self.docker_exec(&args.command).await
             }
+            "process_start" => {
+                let args: ProcessStartArgs = serde_json::from_str(arguments_json)
+                    .context("parse process_start arguments")?;
+                self.process_start(&args.command, &args.args).await
+            }
+            "process_poll" => {
+                let args: ProcessPollArgs =
+                    serde_json::from_str(arguments_json).context("parse process_poll arguments")?;
+                self.process_poll(&args.process_id).await
+            }
+            "process_write" => {
+                let args: ProcessWriteArgs = serde_json::from_str(arguments_json)
+                    .context("parse process_write arguments")?;
+                self.process_write(&args.process_id, &args.data).await
+            }
+            "process_kill" => {
+                let args: ProcessKillArgs =
+                    serde_json::from_str(arguments_json).context("parse process_kill arguments")?;
+                self.process_kill(&args.process_id).await
+            }
+            "process_list" => {
+                let _args: serde_json::Value =
+                    serde_json::from_str(arguments_json).context("parse process_list arguments")?;
+                self.process_list().await
+            }
             "web_fetch" => {
                 let args: WebFetchArgs =
                     serde_json::from_str(arguments_json).context("parse web_fetch arguments")?;
@@ -169,6 +237,11 @@ impl Toolset {
                     .context("parse image_generate arguments")?;
                 self.image_generate(&args.prompt, &args.path)
             }
+            "canvas_present" => {
+                let args: CanvasPresentArgs = serde_json::from_str(arguments_json)
+                    .context("parse canvas_present arguments")?;
+                self.canvas_present(&args.html, args.title.as_deref())
+            }
             "browser_navigate" => {
                 let args: BrowserNavigateArgs = serde_json::from_str(arguments_json)
                     .context("parse browser_navigate arguments")?;
@@ -228,10 +301,6 @@ impl Toolset {
             | "cron_cancel"
             | "channel_send" => {
                 bail!("tool '{name}' is implemented in the runtime, not Toolset")
-            }
-            "process_start" | "process_poll" | "process_write" | "process_kill" | "process_list"
-            | "canvas_present" => {
-                bail!("tool not implemented yet: {name}")
             }
             _ => bail!("unknown tool: {name}"),
         }
@@ -450,6 +519,234 @@ impl Toolset {
             "workdir": "/workspace",
         })
         .to_string())
+    }
+
+    fn spawn_process_output_reader(
+        mut stream: impl tokio::io::AsyncRead + Unpin + Send + 'static,
+        buffer: Arc<tokio::sync::Mutex<Vec<u8>>>,
+    ) {
+        tokio::spawn(async move {
+            let mut tmp = [0u8; 4096];
+            loop {
+                let n = match stream.read(&mut tmp).await {
+                    Ok(n) => n,
+                    Err(_) => break,
+                };
+                if n == 0 {
+                    break;
+                }
+
+                let mut buf = buffer.lock().await;
+                buf.extend_from_slice(&tmp[..n]);
+                if buf.len() > PROCESS_OUTPUT_MAX_BYTES {
+                    let start = buf.len() - PROCESS_OUTPUT_MAX_BYTES;
+                    let tail = buf.split_off(start);
+                    *buf = tail;
+                }
+            }
+        });
+    }
+
+    async fn process_start(&self, command: &str, args: &[String]) -> anyhow::Result<String> {
+        if command.trim().is_empty() {
+            bail!("command is empty");
+        }
+
+        let mut mgr = self.processes.lock().await;
+        if mgr.processes.len() >= PROCESS_MAX_PROCESSES {
+            bail!("process limit reached (max {PROCESS_MAX_PROCESSES})");
+        }
+
+        let process_id = uuid::Uuid::new_v4().to_string();
+
+        let mut cmd = tokio::process::Command::new(command);
+        cmd.args(args)
+            .current_dir(&self.workspace_root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .env_clear();
+
+        if let Ok(path) = std::env::var("PATH") {
+            cmd.env("PATH", path);
+        }
+
+        if cfg!(windows) {
+            for key in ["SystemRoot", "USERPROFILE", "TEMP", "TMP"] {
+                if let Ok(v) = std::env::var(key) {
+                    cmd.env(key, v);
+                }
+            }
+        } else {
+            for key in ["HOME", "USER"] {
+                if let Ok(v) = std::env::var(key) {
+                    cmd.env(key, v);
+                }
+            }
+        }
+
+        for key in ["CARGO_HOME", "RUSTUP_HOME"] {
+            if let Ok(v) = std::env::var(key) {
+                cmd.env(key, v);
+            }
+        }
+
+        let mut child = cmd.spawn().context("spawn process")?;
+        let stdin = child.stdin.take();
+        let stdout = child.stdout.take().context("process stdout is not piped")?;
+        let stderr = child.stderr.take().context("process stderr is not piped")?;
+
+        let stdout_buf = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        let stderr_buf = Arc::new(tokio::sync::Mutex::new(Vec::new()));
+        Self::spawn_process_output_reader(stdout, stdout_buf.clone());
+        Self::spawn_process_output_reader(stderr, stderr_buf.clone());
+
+        let entry = ProcessEntry {
+            command: command.to_string(),
+            args: args.to_vec(),
+            started_at: std::time::Instant::now(),
+            exit_code: None,
+            child,
+            stdin,
+            stdout: stdout_buf,
+            stderr: stderr_buf,
+        };
+
+        mgr.processes.insert(
+            process_id.clone(),
+            Arc::new(tokio::sync::Mutex::new(entry)),
+        );
+
+        Ok(serde_json::json!({
+            "process_id": process_id,
+            "status": "started"
+        })
+        .to_string())
+    }
+
+    async fn process_poll(&self, process_id: &str) -> anyhow::Result<String> {
+        let entry = {
+            let mgr = self.processes.lock().await;
+            mgr.processes
+                .get(process_id)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("unknown process_id: {process_id}"))?
+        };
+
+        let (stdout_buf, stderr_buf, exit_code, alive) = {
+            let mut guard = entry.lock().await;
+            if guard.exit_code.is_none() {
+                if let Some(status) = guard.child.try_wait().context("try_wait process")? {
+                    guard.exit_code = Some(status.code().unwrap_or(-1));
+                }
+            }
+
+            (
+                guard.stdout.clone(),
+                guard.stderr.clone(),
+                guard.exit_code,
+                guard.exit_code.is_none(),
+            )
+        };
+
+        let stdout = {
+            let mut buf = stdout_buf.lock().await;
+            let bytes = std::mem::take(&mut *buf);
+            String::from_utf8_lossy(&bytes).to_string()
+        };
+        let stderr = {
+            let mut buf = stderr_buf.lock().await;
+            let bytes = std::mem::take(&mut *buf);
+            String::from_utf8_lossy(&bytes).to_string()
+        };
+
+        Ok(serde_json::json!({
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": exit_code,
+            "alive": alive,
+        })
+        .to_string())
+    }
+
+    async fn process_write(&self, process_id: &str, data: &str) -> anyhow::Result<String> {
+        let entry = {
+            let mgr = self.processes.lock().await;
+            mgr.processes
+                .get(process_id)
+                .cloned()
+                .ok_or_else(|| anyhow::anyhow!("unknown process_id: {process_id}"))?
+        };
+
+        let data = if data.ends_with('\n') {
+            data.to_string()
+        } else {
+            format!("{data}\n")
+        };
+
+        let timeout = Duration::from_secs(5);
+        let mut guard = entry.lock().await;
+        let stdin = guard
+            .stdin
+            .as_mut()
+            .context("process stdin is closed")?;
+
+        tokio::time::timeout(timeout, stdin.write_all(data.as_bytes()))
+            .await
+            .context("process_write timed out")?
+            .context("write stdin")?;
+        tokio::time::timeout(timeout, stdin.flush())
+            .await
+            .context("process_write timed out")?
+            .context("flush stdin")?;
+
+        Ok(r#"{"status":"written"}"#.to_string())
+    }
+
+    async fn process_kill(&self, process_id: &str) -> anyhow::Result<String> {
+        let entry = {
+            let mut mgr = self.processes.lock().await;
+            mgr.processes
+                .remove(process_id)
+                .ok_or_else(|| anyhow::anyhow!("unknown process_id: {process_id}"))?
+        };
+
+        let mut guard = entry.lock().await;
+        let _ = guard.child.kill().await;
+        let _ = guard.child.wait().await;
+
+        Ok(r#"{"status":"killed"}"#.to_string())
+    }
+
+    async fn process_list(&self) -> anyhow::Result<String> {
+        let entries: Vec<(String, Arc<tokio::sync::Mutex<ProcessEntry>>)> = {
+            let mgr = self.processes.lock().await;
+            mgr.processes
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        };
+
+        let mut out = Vec::new();
+        for (id, entry) in entries {
+            let mut guard = entry.lock().await;
+            if guard.exit_code.is_none() {
+                if let Some(status) = guard.child.try_wait().context("try_wait process")? {
+                    guard.exit_code = Some(status.code().unwrap_or(-1));
+                }
+            }
+
+            out.push(serde_json::json!({
+                "process_id": id,
+                "command": guard.command.clone(),
+                "args": guard.args.clone(),
+                "alive": guard.exit_code.is_none(),
+                "exit_code": guard.exit_code,
+                "uptime_secs": guard.started_at.elapsed().as_secs(),
+            }));
+        }
+
+        Ok(serde_json::Value::Array(out).to_string())
     }
 
     async fn web_search(&self, query: &str, max_results: Option<u32>) -> anyhow::Result<String> {
@@ -880,6 +1177,38 @@ impl Toolset {
         .to_string())
     }
 
+    fn canvas_present(&self, html: &str, title: Option<&str>) -> anyhow::Result<String> {
+        let title = title
+            .map(|v| v.trim())
+            .filter(|v| !v.is_empty())
+            .unwrap_or("Canvas");
+
+        let sanitized = sanitize_canvas_html(html, 512 * 1024)?;
+
+        let canvas_id = uuid::Uuid::new_v4().to_string();
+        let rel = format!("output/canvas_{canvas_id}.html");
+        let out_path = self.resolve_workspace_path_for_write(&rel)?;
+        if let Some(parent) = out_path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create dirs {}", parent.display()))?;
+        }
+
+        let safe_title = escape_xml_text(title);
+        let full = format!(
+            "<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"><title>{safe_title}</title></head>\n<body>\n{sanitized}\n</body>\n</html>\n"
+        );
+
+        std::fs::write(&out_path, &full).with_context(|| format!("write {}", out_path.display()))?;
+
+        Ok(serde_json::json!({
+            "canvas_id": canvas_id,
+            "title": title,
+            "saved_to": rel,
+            "size_bytes": full.len(),
+        })
+        .to_string())
+    }
+
     async fn browser_navigate(
         &self,
         url: &str,
@@ -1288,6 +1617,29 @@ struct DockerExecArgs {
 }
 
 #[derive(Debug, serde::Deserialize)]
+struct ProcessStartArgs {
+    command: String,
+    #[serde(default)]
+    args: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ProcessPollArgs {
+    process_id: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ProcessWriteArgs {
+    process_id: String,
+    data: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ProcessKillArgs {
+    process_id: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
 struct WebFetchArgs {
     url: String,
     #[serde(default)]
@@ -1359,6 +1711,13 @@ struct ImageGenerateArgs {
 }
 
 #[derive(Debug, serde::Deserialize)]
+struct CanvasPresentArgs {
+    html: String,
+    #[serde(default)]
+    title: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
 struct BrowserNavigateArgs {
     url: String,
     #[serde(default)]
@@ -1423,6 +1782,82 @@ fn escape_xml_text(input: &str) -> String {
         }
     }
     out
+}
+
+fn contains_event_handler_attr(lower: &str) -> bool {
+    let bytes = lower.as_bytes();
+    for i in 0..bytes.len().saturating_sub(2) {
+        if bytes[i] != b'o' || bytes[i + 1] != b'n' {
+            continue;
+        }
+
+        if i > 0 {
+            let prev = bytes[i - 1];
+            let ok_boundary = prev.is_ascii_whitespace()
+                || matches!(prev, b'<' | b'"' | b'\'' | b'/' | b'=');
+            if !ok_boundary {
+                continue;
+            }
+        }
+
+        let mut j = i + 2;
+        let mut had_letter = false;
+        while j < bytes.len() && bytes[j].is_ascii_alphabetic() {
+            had_letter = true;
+            j += 1;
+        }
+        if !had_letter {
+            continue;
+        }
+
+        while j < bytes.len() && bytes[j].is_ascii_whitespace() {
+            j += 1;
+        }
+        if j < bytes.len() && bytes[j] == b'=' {
+            return true;
+        }
+    }
+    false
+}
+
+fn sanitize_canvas_html(html: &str, max_bytes: usize) -> anyhow::Result<String> {
+    if html.trim().is_empty() {
+        bail!("html is empty");
+    }
+    if html.len() > max_bytes {
+        bail!("html too large: {} bytes (max {})", html.len(), max_bytes);
+    }
+
+    let lower = html.to_ascii_lowercase();
+
+    for tag in [
+        "<script",
+        "</script",
+        "<iframe",
+        "</iframe",
+        "<object",
+        "</object",
+        "<embed",
+        "</embed",
+        "<applet",
+        "</applet",
+    ] {
+        if lower.contains(tag) {
+            bail!("forbidden html tag detected: {tag}");
+        }
+    }
+
+    if contains_event_handler_attr(&lower) {
+        bail!("forbidden event handler attribute detected (on* attributes are not allowed)");
+    }
+
+    for scheme in ["javascript:", "vbscript:", "data:text/html"] {
+        if lower.contains(scheme) {
+            bail!("forbidden url scheme detected: {scheme}");
+        }
+    }
+
+    Ok(html.to_string())
 }
 
 fn detect_image_format_and_dimensions(bytes: &[u8]) -> Option<(&'static str, u32, u32)> {
@@ -2527,28 +2962,101 @@ fn compat_tool_defs() -> Vec<ToolDefinition> {
         },
     });
 
-    // Reserved tool names (stubs in RexOS for now).
-    for name in [
-        "process_start",
-        "process_poll",
-        "process_write",
-        "process_kill",
-        "process_list",
-        "canvas_present",
-    ] {
-        defs.push(ToolDefinition {
-            kind: "function".to_string(),
-            function: ToolFunctionDefinition {
-                name: name.to_string(),
-                description: format!("Tool stub (not implemented yet): {name}."),
-                parameters: json!({
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": true
-                }),
-            },
-        });
-    }
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "process_start".to_string(),
+            description: "Start a long-running process (REPL/server). Returns a process_id.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "command": { "type": "string", "description": "Executable to run (e.g. 'python', 'node', 'bash')." },
+                    "args": { "type": "array", "items": { "type": "string" }, "description": "Optional command-line args." }
+                },
+                "required": ["command"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "process_poll".to_string(),
+            description: "Drain buffered stdout/stderr from a running process (non-blocking).".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "process_id": { "type": "string", "description": "Process id returned by process_start." }
+                },
+                "required": ["process_id"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "process_write".to_string(),
+            description: "Write data to a running process's stdin (appends newline if missing).".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "process_id": { "type": "string", "description": "Process id returned by process_start." },
+                    "data": { "type": "string", "description": "Data to write to stdin." }
+                },
+                "required": ["process_id", "data"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "process_kill".to_string(),
+            description: "Terminate a running process and clean up resources.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "process_id": { "type": "string", "description": "Process id returned by process_start." }
+                },
+                "required": ["process_id"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "process_list".to_string(),
+            description: "List running processes started via process_start.".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "canvas_present".to_string(),
+            description: "Present sanitized HTML as a canvas artifact (saved to workspace output/).".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "html": { "type": "string", "description": "HTML content to present (scripts/event handlers are forbidden)." },
+                    "title": { "type": "string", "description": "Optional canvas title." }
+                },
+                "required": ["html"],
+                "additionalProperties": false
+            }),
+        },
+    });
 
     defs
 }
@@ -3203,6 +3711,189 @@ mod tests {
             Some(v) => std::env::set_var("REXOS_DOCKER_EXEC_ENABLED", v),
             None => std::env::remove_var("REXOS_DOCKER_EXEC_ENABLED"),
         }
+    }
+
+    #[tokio::test]
+    async fn process_tools_start_poll_write_kill_and_list() {
+        use std::time::Duration;
+
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let tools = Toolset::new(workspace).unwrap();
+
+        let start_args = if cfg!(windows) {
+            serde_json::json!({
+                "command": "powershell",
+                "args": ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "Write-Output READY; $line = [Console]::In.ReadLine(); Write-Output (\"ECHO:\" + $line); Start-Sleep -Seconds 5"]
+            })
+        } else {
+            serde_json::json!({
+                "command": "bash",
+                "args": ["-lc", "echo READY; read line; echo ECHO:$line; sleep 5"]
+            })
+        };
+
+        let out = tools
+            .call("process_start", &start_args.to_string())
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).expect("process_start is json");
+        let process_id = v
+            .get("process_id")
+            .and_then(|v| v.as_str())
+            .expect("process_id")
+            .to_string();
+
+        let list = tools.call("process_list", r#"{}"#).await.unwrap();
+        let lv: serde_json::Value = serde_json::from_str(&list).expect("process_list is json");
+        let arr = lv.as_array().expect("process_list output is array");
+        assert!(
+            arr.iter().any(|p| {
+                p.get("process_id").and_then(|v| v.as_str()) == Some(process_id.as_str())
+            }),
+            "process_list did not include {process_id}: {lv}"
+        );
+
+        let mut seen = String::new();
+        for _ in 0..40 {
+            let poll = tools
+                .call(
+                    "process_poll",
+                    &format!(r#"{{ "process_id": "{}" }}"#, process_id),
+                )
+                .await
+                .unwrap();
+            let pv: serde_json::Value = serde_json::from_str(&poll).expect("process_poll is json");
+            let stdout = pv.get("stdout").and_then(|v| v.as_str()).unwrap_or("");
+            seen.push_str(stdout);
+            if seen.contains("READY") {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        assert!(seen.contains("READY"), "did not see READY: {seen}");
+
+        let _ = tools
+            .call(
+                "process_write",
+                &format!(
+                    r#"{{ "process_id": "{}", "data": "hi" }}"#,
+                    process_id
+                ),
+            )
+            .await
+            .unwrap();
+
+        let mut seen = String::new();
+        for _ in 0..40 {
+            let poll = tools
+                .call(
+                    "process_poll",
+                    &format!(r#"{{ "process_id": "{}" }}"#, process_id),
+                )
+                .await
+                .unwrap();
+            let pv: serde_json::Value = serde_json::from_str(&poll).expect("process_poll is json");
+            let stdout = pv.get("stdout").and_then(|v| v.as_str()).unwrap_or("");
+            seen.push_str(stdout);
+            if seen.contains("ECHO:hi") {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(25)).await;
+        }
+        assert!(seen.contains("ECHO:hi"), "did not see ECHO:hi: {seen}");
+
+        let _ = tools
+            .call(
+                "process_kill",
+                &format!(r#"{{ "process_id": "{}" }}"#, process_id),
+            )
+            .await
+            .unwrap();
+
+        let list = tools.call("process_list", r#"{}"#).await.unwrap();
+        let lv: serde_json::Value = serde_json::from_str(&list).expect("process_list is json");
+        let arr = lv.as_array().expect("process_list output is array");
+        assert!(
+            !arr.iter().any(|p| {
+                p.get("process_id").and_then(|v| v.as_str()) == Some(process_id.as_str())
+            }),
+            "process still listed after kill: {lv}"
+        );
+    }
+
+    #[tokio::test]
+    async fn canvas_present_writes_sanitized_html_file() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let tools = Toolset::new(workspace.clone()).unwrap();
+        let out = tools
+            .call(
+                "canvas_present",
+                r#"{ "title": "Report", "html": "<h1>Hello</h1>" }"#,
+            )
+            .await
+            .unwrap();
+
+        let v: serde_json::Value =
+            serde_json::from_str(&out).expect("canvas_present output is json");
+        let saved_to = v
+            .get("saved_to")
+            .and_then(|v| v.as_str())
+            .expect("saved_to");
+        assert!(saved_to.ends_with(".html"), "unexpected saved_to: {saved_to}");
+
+        let html = std::fs::read_to_string(workspace.join(saved_to)).unwrap();
+        assert!(html.contains("<h1>Hello</h1>"), "{html}");
+        assert!(html.contains("<title>Report</title>"), "{html}");
+    }
+
+    #[tokio::test]
+    async fn canvas_present_rejects_dangerous_html() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let tools = Toolset::new(workspace).unwrap();
+
+        let err = tools
+            .call(
+                "canvas_present",
+                r#"{ "html": "<script>alert(1)</script>" }"#,
+            )
+            .await
+            .unwrap_err();
+        assert!(err.to_string().to_lowercase().contains("script"), "{err}");
+
+        let err = tools
+            .call(
+                "canvas_present",
+                r#"{ "html": "<img src=x onerror=alert(1)>" }"#,
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().to_lowercase().contains("event")
+                || err.to_string().to_lowercase().contains("onerror")
+                || err.to_string().to_lowercase().contains("handler"),
+            "{err}"
+        );
+
+        let err = tools
+            .call(
+                "canvas_present",
+                r#"{ "html": "<a href=\"javascript:alert(1)\">x</a>" }"#,
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string().to_lowercase().contains("javascript"),
+            "{err}"
+        );
     }
 
     #[tokio::test]
