@@ -162,7 +162,10 @@ async fn main() -> anyhow::Result<()> {
                 let router = rexos::router::ModelRouter::new(cfg.router);
                 let agent = rexos::agent::AgentRuntime::new(memory, llms, router);
 
-                let session_id = session.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+                let session_id = match session {
+                    Some(id) => id,
+                    None => rexos::harness::resolve_session_id(&workspace)?,
+                };
                 let out = agent
                     .run_session(
                         workspace,

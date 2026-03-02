@@ -2,18 +2,14 @@
 
 这里把浏览器配方拆成多个独立页面，方便你在侧边栏快速点开查看并复制粘贴。
 
-另见：[浏览器自动化（Playwright）](browser-automation.md)。
+另见：[浏览器自动化（CDP）](browser-automation.md)。
 
-## 前置条件（Playwright）
+## 前置条件（默认：CDP）
 
-安装 Playwright（Python）：
+- 安装任意 Chromium 系浏览器（Chrome/Chromium/Edge）。
+- 如果 RexOS 找不到可执行文件，可以设置 `REXOS_BROWSER_CHROME_PATH`。
 
-```bash
-python3 -m pip install playwright
-python3 -m playwright install chromium
-```
-
-如果你的 Python 可执行文件不是 `python3`，可以通过环境变量 `REXOS_BROWSER_PYTHON` 指定（例如 `python`）。
+可选：使用 Playwright（legacy）后端：设置 `REXOS_BROWSER_BACKEND=playwright`，并按 [浏览器自动化](browser-automation.md) 的步骤安装 Playwright。
 
 ## 配方列表
 

@@ -31,9 +31,9 @@ RexOS 会强制超时，并使用尽量最小的环境。
 
 默认拒绝 loopback/private IP 段（基础 SSRF 防护）。本地测试可用 `allow_private=true` 显式放开。
 
-## `browser_*`（Playwright）
+## `browser_*`（CDP）
 
-浏览器工具通过 Python Playwright bridge 提供无头浏览器自动化能力：
+浏览器工具默认通过 **Chrome DevTools Protocol（CDP）** 提供无头浏览器自动化能力（无需 Python）：
 
 - `browser_navigate` / `browser_click` / `browser_type` / `browser_press_key` / `browser_wait_for` / `browser_read_page` / `browser_screenshot` / `browser_close`
 
@@ -42,7 +42,9 @@ RexOS 会强制超时，并使用尽量最小的环境。
 - `browser_navigate` 默认带 SSRF 防护（拒绝 loopback/private 目标，除非 `allow_private=true`）。
 - 默认是 headless。如需显示浏览器窗口，可在 `browser_navigate` 传 `headless=false`（或设置 `REXOS_BROWSER_HEADLESS=0` 作为默认值）。
 - `browser_screenshot` 只允许写入 workspace 相对路径（不允许绝对路径、不允许 `..`、不允许通过 symlink 逃逸）。
-- 需要 Python + Playwright：
+- 默认后端是 CDP，需要本机存在 Chromium 系浏览器（Chrome/Chromium/Edge）。如果 RexOS 找不到可执行文件，设置 `REXOS_BROWSER_CHROME_PATH`。
+- 可选远程 CDP：设置 `REXOS_BROWSER_CDP_HTTP`（例如 `http://127.0.0.1:9222`）。
+- 可选 legacy 后端（Playwright bridge）：设置 `REXOS_BROWSER_BACKEND=playwright` 并安装 Python + Playwright：
 
   ```bash
   python3 -m pip install playwright

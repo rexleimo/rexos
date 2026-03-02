@@ -12,6 +12,9 @@ site_dir: site
 theme:
   name: material
   language: en
+  custom_dir: docs-site/overrides
+  logo: assets/images/logo.svg
+  favicon: assets/images/favicon.svg
   icon:
     repo: fontawesome/brands/github
   features:
@@ -55,9 +58,11 @@ plugins:
           default: true
           name: English
           build: true
-        - locale: zh
+        - locale: zh-CN
           name: 简体中文
           build: true
+          theme:
+            language: zh
           nav_translations:
             Guides: 指南
             Overview: 概览
@@ -94,7 +99,10 @@ plugins:
             Reference: 参考
             Config: 配置
             Tools: 工具
-  - search
+  - search:
+      lang:
+        - en
+        - zh
 
 markdown_extensions:
   - admonition

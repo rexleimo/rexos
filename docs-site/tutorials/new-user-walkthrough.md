@@ -60,14 +60,12 @@ Expected artifacts:
 Expected:
 
 - `hello.txt` exists in the workspace and contains `hi`
-- RexOS prints a `session_id` to stderr (save it for the next step)
+- RexOS prints a `session_id` to stderr and also persists it under `rexos-demo/.rexos/session_id`
 
-## 3) Re-run with the same session id (memory)
-
-Replace `<SESSION_ID>` with the id RexOS printed previously.
+## 3) Re-run in the same workspace (memory)
 
 ```bash
-rexos agent run --workspace rexos-demo --session <SESSION_ID> --prompt "Append a newline + bye to hello.txt"
+rexos agent run --workspace rexos-demo --prompt "Append a newline + bye to hello.txt"
 ```
 
 Verify the file updated:
@@ -117,4 +115,3 @@ On the docs site, every page should have:
 - **View source** → opens the raw Markdown file
 
 If these buttons are missing or broken, check the docs workflow and `mkdocs.yml` (`repo_url` + `edit_uri`).
-

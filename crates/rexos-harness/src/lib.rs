@@ -495,31 +495,41 @@ fn select_init_script(workspace_dir: &Path) -> anyhow::Result<InitScript> {
 fn run_init_script(workspace_dir: &Path) -> anyhow::Result<()> {
     match select_init_script(workspace_dir)? {
         InitScript::Bash => {
-            let status = Command::new("bash")
+            let output = Command::new("bash")
                 .arg(INIT_SH)
                 .current_dir(workspace_dir)
-                .status()
+                .output()
                 .with_context(|| format!("run {}", workspace_dir.join(INIT_SH).display()))?;
-            if !status.success() {
-                bail!("init.sh failed");
+
+            if output.status.success() {
+                return Ok(());
             }
-            Ok(())
+
+            let combined = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+
+            // On Windows, some environments have a `bash` shim that routes to WSL. If WSL isn't
+            // installed, `bash init.sh` fails even though we also provide `init.ps1`.
+            if cfg!(windows) && workspace_dir.join(INIT_PS1).exists() {
+                if let Ok(ps1) = run_powershell_script_output(workspace_dir, INIT_PS1) {
+                    if ps1.status.success() {
+                        return Ok(());
+                    }
+                }
+            }
+
+            bail!("init.sh failed: {}", combined.trim());
         }
         InitScript::PowerShell => {
-            let status = Command::new("powershell")
-                .args([
-                    "-NoProfile",
-                    "-NonInteractive",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-File",
-                    INIT_PS1,
-                ])
-                .current_dir(workspace_dir)
-                .status()
-                .with_context(|| format!("run {}", workspace_dir.join(INIT_PS1).display()))?;
-            if !status.success() {
-                bail!("init.ps1 failed");
+            let output = run_powershell_script_output(workspace_dir, INIT_PS1)?;
+            let mut combined = String::new();
+            combined.push_str(&String::from_utf8_lossy(&output.stdout));
+            combined.push_str(&String::from_utf8_lossy(&output.stderr));
+            if !output.status.success() {
+                bail!("init.ps1 failed: {}", combined.trim());
             }
             Ok(())
         }
@@ -533,18 +543,7 @@ fn run_init_script_capture(workspace_dir: &Path) -> anyhow::Result<String> {
             .current_dir(workspace_dir)
             .output()
             .with_context(|| format!("run {}", workspace_dir.join(INIT_SH).display()))?,
-        InitScript::PowerShell => Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                INIT_PS1,
-            ])
-            .current_dir(workspace_dir)
-            .output()
-            .with_context(|| format!("run {}", workspace_dir.join(INIT_PS1).display()))?,
+        InitScript::PowerShell => run_powershell_script_output(workspace_dir, INIT_PS1)?,
     };
 
     let mut combined = String::new();
@@ -556,6 +555,31 @@ fn run_init_script_capture(workspace_dir: &Path) -> anyhow::Result<String> {
     }
 
     Ok(combined)
+}
+
+fn run_powershell_script_output(workspace_dir: &Path, script: &str) -> anyhow::Result<std::process::Output> {
+    let args = [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        script,
+    ];
+
+    if let Ok(output) = Command::new("powershell")
+        .args(args)
+        .current_dir(workspace_dir)
+        .output()
+    {
+        return Ok(output);
+    }
+
+    Command::new("pwsh")
+        .args(args)
+        .current_dir(workspace_dir)
+        .output()
+        .with_context(|| format!("run {}", workspace_dir.join(script).display()))
 }
 
 fn commit_checkpoint_if_dirty(workspace_dir: &Path, message: &str) -> anyhow::Result<()> {

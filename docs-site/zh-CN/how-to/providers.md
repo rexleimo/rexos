@@ -138,6 +138,12 @@ RexOS 会从 `api_key_env` 指定的环境变量读取 key。
 # Ollama（OpenAI-compatible）
 REXOS_OLLAMA_MODEL=<your-model> cargo test -p rexos --test ollama_smoke -- --ignored
 
+# GLM（智谱原生）
+ZHIPUAI_API_KEY=<id.secret> REXOS_GLM_MODEL=<model> cargo test -p rexos --test zhipu_smoke -- --ignored
+
+# MiniMax（原生）
+MINIMAX_API_KEY=<key> REXOS_MINIMAX_MODEL=<model> cargo test -p rexos --test minimax_smoke -- --ignored
+
 # NVIDIA NIM（OpenAI-compatible）
 NVIDIA_API_KEY=<key> REXOS_NVIDIA_MODEL=<model> cargo test -p rexos --test nvidia_nim_smoke -- --ignored
 ```

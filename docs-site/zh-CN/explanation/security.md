@@ -28,13 +28,14 @@ Windows 下使用 PowerShell；Unix 下使用 bash。
 
 ## 浏览器工具（browser_*）
 
-RexOS 可以可选地通过 Python Playwright bridge 启动一个无头浏览器：
+RexOS 默认通过 **CDP** 启动并控制无头浏览器（无需 Python），也支持 legacy 的 Playwright bridge 后端。
 
-- `browser_navigate` / `browser_click` / `browser_type` / `browser_read_page` / `browser_screenshot` / `browser_close`
+- `browser_navigate` / `browser_click` / `browser_type` / `browser_press_key` / `browser_wait_for` / `browser_read_page` / `browser_screenshot` / `browser_close`
 
 安全说明：
 
 - `browser_navigate` 默认与 `web_fetch` 类似的 SSRF 防护（拒绝 loopback/private 目标，除非 `allow_private=true`）。
+- `browser_read_page` 与 `browser_screenshot` 也会做同样的 SSRF 防护（除非你开启了 `allow_private`）。
 - `browser_screenshot` 只会写入 **workspace 相对路径**（不允许绝对路径、不允许 `..`、不允许通过 symlink 逃逸）。
 
 ## 未来：审批（Approvals）

@@ -31,9 +31,9 @@ Fetch an HTTP(S) URL and return a small response body.
 
 By default it rejects loopback/private IPs (basic SSRF protection). For local testing you can set `allow_private=true`.
 
-## `browser_*` (Playwright)
+## `browser_*` (CDP)
 
-Browser tools enable headless browser automation via a Python Playwright bridge:
+Browser tools enable headless browser automation via **Chrome DevTools Protocol (CDP)** (no Python by default):
 
 - `browser_navigate` / `browser_click` / `browser_type` / `browser_press_key` / `browser_wait_for` / `browser_read_page` / `browser_screenshot` / `browser_close`
 
@@ -42,7 +42,9 @@ Notes:
 - `browser_navigate` is SSRF-protected by default (denies loopback/private targets unless `allow_private=true`).
 - Headless by default. To show a GUI window, pass `headless=false` to `browser_navigate` (or set `REXOS_BROWSER_HEADLESS=0` as a default).
 - `browser_screenshot` writes a PNG to a workspace-relative path (no absolute paths, no `..`, no symlink escapes).
-- Requires Python + Playwright:
+- Default backend is CDP and requires a local Chromium-based browser (Chrome/Chromium/Edge). If RexOS can’t find it, set `REXOS_BROWSER_CHROME_PATH`.
+- Optional remote CDP: set `REXOS_BROWSER_CDP_HTTP` (example: `http://127.0.0.1:9222`).
+- Optional legacy backend (Playwright bridge): set `REXOS_BROWSER_BACKEND=playwright` and install Python + Playwright:
 
   ```bash
   python3 -m pip install playwright

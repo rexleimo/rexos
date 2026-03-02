@@ -1,23 +1,31 @@
-# Browser Automation (Playwright)
+# Browser Automation (CDP)
 
 Use browser tools when `web_fetch` isn't enough (JS-rendered pages, multi-step flows, forms, screenshots).
 
 For copy-paste recipes, see: [Browser Use Cases](browser-use-cases.md).
 
-## Prerequisites
+## Default backend: CDP (no Python)
 
-Install Playwright (Python):
+RexOS launches a local Chromium-based browser (Chrome / Chromium / Edge) and drives it via **Chrome DevTools Protocol (CDP)**.
+
+### Prerequisites
+
+- Install a Chromium-based browser (Chrome/Chromium/Edge).
+- If RexOS can’t find it, set `REXOS_BROWSER_CHROME_PATH` to the browser executable path.
+
+### Remote CDP (optional)
+
+If you already have a browser running with a remote debugging port (or you run one in Docker), point RexOS at it:
 
 ```bash
-python3 -m pip install playwright
-python3 -m playwright install chromium
+export REXOS_BROWSER_CDP_HTTP="http://127.0.0.1:9222"
 ```
 
-If your Python executable isn't `python3`, set `REXOS_BROWSER_PYTHON` (example: `python`).
+For a copy/paste Docker GUI sandbox (Chromium + noVNC) that exposes CDP on `127.0.0.1:9222`, see: [GUI Smoke Check](browser-use-cases/gui-smoke-check.md).
 
 ## Headless vs GUI
 
-By default, RexOS launches Chromium in **headless** mode.
+By default, RexOS launches the browser in **headless** mode.
 
 To show the browser window (local debugging / demos), set `headless=false` on the first `browser_navigate` call:
 
@@ -26,6 +34,23 @@ To show the browser window (local debugging / demos), set `headless=false` on th
 ```
 
 You can also set `REXOS_BROWSER_HEADLESS=0` to make GUI mode the default when `headless` is not provided.
+
+## Optional backend: Playwright bridge (legacy)
+
+If you prefer Playwright (or you’re in an environment where CDP is hard), switch the backend:
+
+```bash
+export REXOS_BROWSER_BACKEND=playwright
+```
+
+Then install Playwright (Python):
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
+If your Python executable isn't `python3`, set `REXOS_BROWSER_PYTHON` (example: `python`).
 
 ## Tool set
 
@@ -83,11 +108,14 @@ rexos agent run --workspace . --prompt "Use browser tools to open https://exampl
 ## Security notes
 
 - `browser_navigate` denies loopback/private targets by default. Use `allow_private=true` only for local/private testing.
+- `browser_read_page` and `browser_screenshot` also enforce the same loopback/private protection (unless you enabled `allow_private`).
 - `browser_screenshot` only writes to workspace-relative paths (no absolute paths, no `..`, no symlink escapes).
 
 ## Troubleshooting
 
-- Error mentions Playwright missing: run the install commands in “Prerequisites”.
-- Error mentions `python3` missing: set `REXOS_BROWSER_PYTHON=python`.
+- Error mentions Chrome/Chromium not found: install a browser or set `REXOS_BROWSER_CHROME_PATH`.
+- Error mentions CDP sandbox issues in Docker: set `REXOS_BROWSER_NO_SANDBOX=1` (only in trusted sandbox envs).
+- Error mentions Playwright missing: set `REXOS_BROWSER_BACKEND=playwright` and install Playwright.
+- Error mentions `python3` missing (Playwright backend): set `REXOS_BROWSER_PYTHON=python`.
 - No browser window appears: it's headless by default; use `headless=false` (or set `REXOS_BROWSER_HEADLESS=0`).
 - Error mentions session not started: call `browser_navigate` first.

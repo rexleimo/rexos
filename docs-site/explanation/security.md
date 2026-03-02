@@ -28,13 +28,14 @@ For local testing you can explicitly allow private targets with `allow_private=t
 
 ## Browser tools
 
-RexOS can optionally run a headless browser via a Python Playwright bridge:
+RexOS can run a headless browser via **CDP** by default (no Python), and can also use a legacy Playwright bridge backend.
 
-- `browser_navigate` / `browser_click` / `browser_type` / `browser_read_page` / `browser_screenshot` / `browser_close`
+- `browser_navigate` / `browser_click` / `browser_type` / `browser_press_key` / `browser_wait_for` / `browser_read_page` / `browser_screenshot` / `browser_close`
 
 Security notes:
 
 - `browser_navigate` is SSRF-checked similar to `web_fetch` (denies loopback/private targets unless `allow_private=true`).
+- `browser_read_page` and `browser_screenshot` also enforce the same SSRF protection (unless you enabled `allow_private`).
 - Screenshots are written to a **workspace-relative** path (no absolute paths, no `..`, no symlink escapes).
 
 ## Future: approvals

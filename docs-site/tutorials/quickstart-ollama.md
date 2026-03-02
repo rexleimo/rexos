@@ -64,12 +64,12 @@ Pick a workspace directory (tools are sandboxed to this root):
     Get-Content .\rexos-work\hello.txt
     ```
 
-RexOS prints the final assistant output, and also logs a `session_id` to stderr for later reuse.
+RexOS prints the final assistant output, and persists a stable `session_id` under `rexos-work/.rexos/session_id`.
 
-## 4) Re-run with the same session id (optional)
+## 4) Re-run in the same workspace (optional)
 
 ```bash
-rexos agent run --workspace rexos-work --session <SESSION_ID> --prompt "Now append a newline + bye to hello.txt"
+rexos agent run --workspace rexos-work --prompt "Now append a newline + bye to hello.txt"
 ```
 
 ## Next steps

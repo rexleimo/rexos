@@ -2,7 +2,7 @@
 
 **目标：** 一个更稳定、无需登录的网站，用于快速演示。
 
-另见：[浏览器自动化（Playwright）](../browser-automation.md)。
+另见：[浏览器自动化（CDP）](../browser-automation.md)。
 
 ## 运行（有界面模式）
 

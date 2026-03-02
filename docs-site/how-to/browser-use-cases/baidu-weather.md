@@ -2,7 +2,7 @@
 
 **Goal:** open a Baidu results page, extract today’s weather info, and save evidence.
 
-See also: [Browser Automation (Playwright)](../browser-automation.md).
+See also: [Browser Automation (CDP)](../browser-automation.md).
 
 ## Recommended model (Ollama)
 

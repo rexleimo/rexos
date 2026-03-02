@@ -2,7 +2,7 @@
 
 **目标：** 打开百度搜索结果页，提取“今天天气”关键信息，并截图留证。
 
-另见：[浏览器自动化（Playwright）](../browser-automation.md)。
+另见：[浏览器自动化（CDP）](../browser-automation.md)。
 
 ## 推荐模型（Ollama）
 

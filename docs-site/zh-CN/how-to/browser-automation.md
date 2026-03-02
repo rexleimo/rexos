@@ -1,23 +1,31 @@
-# 浏览器自动化（Playwright）
+# 浏览器自动化（CDP）
 
 当 `web_fetch` 不够用（JS 渲染页面、多步交互、表单填写、需要截图留证）时，使用 `browser_*` 工具更可靠。
 
 更多可复制粘贴的配方见：[浏览器案例](browser-use-cases.md)。
 
-## 前置条件
+## 默认后端：CDP（无需 Python）
 
-安装 Playwright（Python）：
+RexOS 默认会启动本机的 Chromium 系浏览器（Chrome / Chromium / Edge），并通过 **Chrome DevTools Protocol（CDP）** 进行自动化控制。
+
+### 前置条件
+
+- 安装任意 Chromium 系浏览器（Chrome/Chromium/Edge）。
+- 如果 RexOS 找不到可执行文件，可以设置 `REXOS_BROWSER_CHROME_PATH` 指向浏览器可执行文件路径。
+
+### 远程 CDP（可选）
+
+如果你已经有一个带远程调试端口的浏览器实例（或你在 Docker 里启动了一个），可以让 RexOS 直接连接：
 
 ```bash
-python3 -m pip install playwright
-python3 -m playwright install chromium
+export REXOS_BROWSER_CDP_HTTP="http://127.0.0.1:9222"
 ```
 
-如果你的 Python 可执行文件不是 `python3`，可以通过环境变量 `REXOS_BROWSER_PYTHON` 指定（例如 `python`）。
+如果你想直接用 Docker 跑一个“带 GUI + noVNC 观察界面”的 Chromium 沙盒（CDP 暴露在 `127.0.0.1:9222`），见：[有界面 smoke check](browser-use-cases/gui-smoke-check.md)。
 
 ## Headless / 有界面
 
-RexOS 默认以 **headless** 模式启动 Chromium。
+RexOS 默认以 **headless** 模式启动浏览器。
 
 如果你想看到浏览器窗口（本地调试 / 演示），在第一次 `browser_navigate` 时设置 `headless=false`：
 
@@ -26,6 +34,23 @@ RexOS 默认以 **headless** 模式启动 Chromium。
 ```
 
 你也可以设置 `REXOS_BROWSER_HEADLESS=0`，让未显式传入 `headless` 时默认使用有界面模式。
+
+## 可选后端：Playwright bridge（legacy）
+
+如果你更习惯 Playwright（或你的环境 CDP 不方便），可以切换后端：
+
+```bash
+export REXOS_BROWSER_BACKEND=playwright
+```
+
+然后安装 Playwright（Python）：
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
+如果你的 Python 可执行文件不是 `python3`，可以通过环境变量 `REXOS_BROWSER_PYTHON` 指定（例如 `python`）。
 
 ## 工具集
 
@@ -80,11 +105,14 @@ rexos agent run --workspace . --prompt "使用 browser 工具打开 https://exam
 ## 安全说明
 
 - `browser_navigate` 默认拒绝 loopback/private 目标；只有本地/私网测试才建议显式开启 `allow_private=true`。
+- `browser_read_page` 与 `browser_screenshot` 也会做同样的 loopback/private 防护（除非你开启了 `allow_private`）。
 - `browser_screenshot` 只允许写到 workspace 相对路径（不允许绝对路径、不允许 `..`、不允许通过 symlink 逃逸）。
 
 ## 故障排查
 
-- 报错提示 Playwright 缺失：按“前置条件”安装。
-- 报错提示找不到 `python3`：设置 `REXOS_BROWSER_PYTHON=python`。
+- 报错提示找不到 Chrome/Chromium：安装浏览器或设置 `REXOS_BROWSER_CHROME_PATH`。
+- 如果在 Docker 里提示 sandbox 相关问题：设置 `REXOS_BROWSER_NO_SANDBOX=1`（仅限可信 sandbox 环境）。
+- 报错提示 Playwright 缺失：设置 `REXOS_BROWSER_BACKEND=playwright` 并安装 Playwright。
+- 报错提示找不到 `python3`（Playwright 后端）：设置 `REXOS_BROWSER_PYTHON=python`。
 - 看不到浏览器窗口：默认是 headless；用 `headless=false`（或设置 `REXOS_BROWSER_HEADLESS=0`）。
 - 报错提示 session 未启动：先调用 `browser_navigate`。

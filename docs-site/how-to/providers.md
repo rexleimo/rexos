@@ -116,6 +116,12 @@ These tests hit real provider endpoints and are `#[ignore]` by default:
 # Ollama (OpenAI-compatible)
 REXOS_OLLAMA_MODEL=<your-model> cargo test -p rexos --test ollama_smoke -- --ignored
 
+# GLM (Zhipu native)
+ZHIPUAI_API_KEY=<id.secret> REXOS_GLM_MODEL=<model> cargo test -p rexos --test zhipu_smoke -- --ignored
+
+# MiniMax (native)
+MINIMAX_API_KEY=<key> REXOS_MINIMAX_MODEL=<model> cargo test -p rexos --test minimax_smoke -- --ignored
+
 # NVIDIA NIM (OpenAI-compatible)
 NVIDIA_API_KEY=<key> REXOS_NVIDIA_MODEL=<model> cargo test -p rexos --test nvidia_nim_smoke -- --ignored
 ```

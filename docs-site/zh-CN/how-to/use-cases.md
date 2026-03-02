@@ -14,5 +14,5 @@
 
 另见：
 
-- [浏览器自动化（Playwright）](browser-automation.md) — 工具语义与 selector 小技巧
+- [浏览器自动化（CDP）](browser-automation.md) — 工具语义与 selector 小技巧
 - [Providers 与路由](providers.md) — 完整 provider 示例（含 GLM/MiniMax 原生 API 与 NVIDIA NIM）

@@ -60,14 +60,12 @@ rexos init
 预期：
 
 - workspace 里生成 `hello.txt`，内容为 `hi`
-- stderr 会打印 `session_id`（下一步要用到）
+- stderr 会打印 `session_id`，并且会持久化到 `rexos-demo/.rexos/session_id`
 
-## 3) 用同一个 session id 续跑（记忆）
-
-把 `<SESSION_ID>` 替换成上一步 RexOS 输出的 id：
+## 3) 在同一个 workspace 里续跑（记忆）
 
 ```bash
-rexos agent run --workspace rexos-demo --session <SESSION_ID> --prompt "Append a newline + bye to hello.txt"
+rexos agent run --workspace rexos-demo --prompt "Append a newline + bye to hello.txt"
 ```
 
 验证文件已更新：
@@ -117,4 +115,3 @@ rexos harness run rexos-harness-demo
 - **查看源文件** → 打开 raw Markdown
 
 如果按钮不见了或不可用，检查 docs workflow 以及 `mkdocs.yml`（`repo_url` + `edit_uri`）。
-

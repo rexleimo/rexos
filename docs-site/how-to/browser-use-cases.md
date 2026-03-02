@@ -2,18 +2,14 @@
 
 This section is intentionally **copy-paste friendly**: each recipe is a standalone page so you can open it quickly and run it.
 
-See also: [Browser Automation (Playwright)](browser-automation.md).
+See also: [Browser Automation (CDP)](browser-automation.md).
 
-## Prerequisites (Playwright)
+## Prerequisites (default: CDP)
 
-Install Playwright (Python):
+- Install a Chromium-based browser (Chrome/Chromium/Edge).
+- If RexOS can’t find it, set `REXOS_BROWSER_CHROME_PATH`.
 
-```bash
-python3 -m pip install playwright
-python3 -m playwright install chromium
-```
-
-If your Python executable isn't `python3`, set `REXOS_BROWSER_PYTHON` (example: `python`).
+Optional: use the Playwright backend (legacy) by setting `REXOS_BROWSER_BACKEND=playwright` and following the install steps in [Browser Automation](browser-automation.md).
 
 ## Recipes
 

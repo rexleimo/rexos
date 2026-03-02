@@ -14,5 +14,5 @@ If you want a quick path, start here:
 
 See also:
 
-- [Browser Automation (Playwright)](browser-automation.md) — tool semantics and selector tips
+- [Browser Automation (CDP)](browser-automation.md) — tool semantics and selector tips
 - [Providers & Routing](providers.md) — full provider examples (GLM/MiniMax native + NVIDIA NIM)

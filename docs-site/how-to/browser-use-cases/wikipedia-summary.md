@@ -2,7 +2,7 @@
 
 **Goal:** a stable no-login site for quick demos.
 
-See also: [Browser Automation (Playwright)](../browser-automation.md).
+See also: [Browser Automation (CDP)](../browser-automation.md).
 
 ## Run (GUI mode)
 

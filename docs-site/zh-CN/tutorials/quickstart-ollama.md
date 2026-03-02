@@ -66,6 +66,14 @@ rexos init
     Get-Content .\rexos-work\hello.txt
     ```
 
+RexOS 会输出最终回答，并把稳定的 `session_id` 持久化到 `rexos-work/.rexos/session_id`。
+
+## 4) 在同一个 workspace 里续跑（可选）
+
+```bash
+rexos agent run --workspace rexos-work --prompt "Now append a newline + bye to hello.txt"
+```
+
 ## 下一步
 
 - Harness 长任务：见 “Harness 长任务”

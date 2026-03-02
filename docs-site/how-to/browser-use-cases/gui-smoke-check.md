@@ -2,7 +2,7 @@
 
 **Goal:** verify `browser_*` works end-to-end and leaves evidence in your workspace.
 
-See also: [Browser Automation (Playwright)](../browser-automation.md).
+See also: [Browser Automation (CDP)](../browser-automation.md).
 
 ## Run
 
@@ -22,6 +22,35 @@ See also: [Browser Automation (Playwright)](../browser-automation.md).
 
     rexos agent run --workspace . --prompt "Use browser tools to open https://example.com, read the page, write a 3-bullet summary to notes/example.md, save a screenshot to .rexos/browser/example.png, then close the browser."
     ```
+
+## Option B: Docker GUI sandbox (Chromium + noVNC)
+
+If you don’t want to install Chrome/Chromium locally, run a sandboxed GUI Chromium in Docker and attach via CDP.
+
+1) Start the sandbox container (from the RexOS repo root):
+
+```bash
+docker compose -f docker/sandbox-browser/compose.yml up --build
+```
+
+2) Open the noVNC observer UI:
+
+- URL: `http://127.0.0.1:6080/vnc.html`
+- Password: `rexos` (from `docker/sandbox-browser/compose.yml`)
+
+3) In another terminal, point RexOS browser tools at the sandbox CDP:
+
+=== "Bash (macOS/Linux)"
+    ```bash
+    export REXOS_BROWSER_CDP_HTTP="http://127.0.0.1:9222"
+    ```
+
+=== "PowerShell (Windows)"
+    ```powershell
+    $env:REXOS_BROWSER_CDP_HTTP = "http://127.0.0.1:9222"
+    ```
+
+Now run the same GUI smoke check prompt as above.
 
 ## What to expect
 

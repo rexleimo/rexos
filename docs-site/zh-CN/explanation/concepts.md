@@ -26,10 +26,14 @@ agent 可以调用工具，例如：
 - `fs_read` / `fs_write`（仅 workspace 内，阻止 `..`）
 - `shell`（仅 workspace 内）
 - `web_fetch`（默认 SSRF 防护）
-- `browser_*`（通过 Python Playwright bridge 进行无头浏览器自动化）
+- `browser_*`（默认通过 CDP 进行无头浏览器自动化；Playwright 可选）
 
 !!! note "Browser 工具前置条件"
-    `browser_*` 工具需要 Python + Playwright：
+    `browser_*` 默认通过 **CDP** 驱动本机 Chromium 系浏览器（Chrome/Chromium/Edge），无需 Python。
+
+    如果 RexOS 找不到浏览器可执行文件，请设置 `REXOS_BROWSER_CHROME_PATH`。
+
+    可选 legacy 后端：设置 `REXOS_BROWSER_BACKEND=playwright`，并安装 Python + Playwright：
 
     ```bash
     python3 -m pip install playwright
