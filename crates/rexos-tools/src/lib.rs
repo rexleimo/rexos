@@ -149,6 +149,11 @@ impl Toolset {
                     .context("parse media_transcribe arguments")?;
                 self.media_transcribe(&args.path)
             }
+            "speech_to_text" => {
+                let args: SpeechToTextArgs = serde_json::from_str(arguments_json)
+                    .context("parse speech_to_text arguments")?;
+                self.speech_to_text(&args.path)
+            }
             "image_generate" => {
                 let args: ImageGenerateArgs = serde_json::from_str(arguments_json)
                     .context("parse image_generate arguments")?;
@@ -214,8 +219,8 @@ impl Toolset {
             | "channel_send" => {
                 bail!("tool '{name}' is implemented in the runtime, not Toolset")
             }
-            "text_to_speech" | "speech_to_text" | "docker_exec" | "process_start" | "process_poll"
-            | "process_write" | "process_kill" | "process_list" | "canvas_present" => {
+            "text_to_speech" | "docker_exec" | "process_start" | "process_poll" | "process_write"
+            | "process_kill" | "process_list" | "canvas_present" => {
                 bail!("tool not implemented yet: {name}")
             }
             _ => bail!("unknown tool: {name}"),
@@ -695,6 +700,25 @@ impl Toolset {
         Ok(serde_json::json!({
             "path": user_path,
             "text": text,
+        })
+        .to_string())
+    }
+
+    fn speech_to_text(&self, user_path: &str) -> anyhow::Result<String> {
+        let out = self.media_transcribe(user_path)?;
+        let v: serde_json::Value =
+            serde_json::from_str(&out).context("parse media_transcribe output")?;
+        let text = v
+            .get("text")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default()
+            .to_string();
+
+        Ok(serde_json::json!({
+            "path": user_path,
+            "transcript": text,
+            "text": v.get("text").cloned().unwrap_or(serde_json::Value::Null),
+            "note": "MVP: speech_to_text currently supports transcript files (.txt/.md/.srt/.vtt).",
         })
         .to_string())
     }
@@ -1180,6 +1204,11 @@ struct MediaDescribeArgs {
 
 #[derive(Debug, serde::Deserialize)]
 struct MediaTranscribeArgs {
+    path: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct SpeechToTextArgs {
     path: String,
 }
 
@@ -2307,10 +2336,25 @@ fn compat_tool_defs() -> Vec<ToolDefinition> {
         },
     });
 
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "speech_to_text".to_string(),
+            description: "Transcribe speech/audio into text (MVP: supports transcript files).".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Workspace-relative transcript path (.txt/.md/.srt/.vtt)." }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
     // Reserved tool names (stubs in RexOS for now).
     for name in [
         "text_to_speech",
-        "speech_to_text",
         "docker_exec",
         "process_start",
         "process_poll",
@@ -2750,6 +2794,29 @@ mod tests {
 
         let v: serde_json::Value =
             serde_json::from_str(&out).expect("media_transcribe output is json");
+        assert_eq!(v.get("text").and_then(|v| v.as_str()), Some("hello world"));
+    }
+
+    #[tokio::test]
+    async fn speech_to_text_reads_text_transcripts() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        std::fs::write(workspace.join("transcript.txt"), "hello world").unwrap();
+
+        let tools = Toolset::new(workspace).unwrap();
+        let out = tools
+            .call("speech_to_text", r#"{ "path": "transcript.txt" }"#)
+            .await
+            .unwrap();
+
+        let v: serde_json::Value =
+            serde_json::from_str(&out).expect("speech_to_text output is json");
+        assert_eq!(
+            v.get("transcript").and_then(|v| v.as_str()),
+            Some("hello world")
+        );
         assert_eq!(v.get("text").and_then(|v| v.as_str()), Some("hello world"));
     }
 
