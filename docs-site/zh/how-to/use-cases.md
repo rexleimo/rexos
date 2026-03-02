@@ -10,6 +10,38 @@
 
 ---
 
+## 0) 环境自检（推荐）
+
+**目标：** 用 2 分钟确认本地配置、路由和工具沙盒都能跑通。
+
+### 步骤
+
+1) 初始化一次：
+
+```bash
+rexos init
+```
+
+2) 创建一个临时 workspace：
+
+```bash
+mkdir -p rexos-demo
+cd rexos-demo
+```
+
+3) 跑一个最小任务：写文件 + 运行 shell 命令：
+
+```bash
+rexos agent run --workspace . --prompt "创建 notes/hello.md（写一句问候）。然后运行 shell 命令 'pwd && ls -la'，把输出保存到 notes/env.txt。最后回复你写入了哪些路径。"
+```
+
+### 预期结果
+
+- `notes/hello.md`
+- `notes/env.txt`
+
+---
+
 ## 1) 用 Harness 把“修到测试通过”变成可持续推进
 
 **目标：** 让 agent 按 “修改 → 验证 → checkpoint” 循环持续推进，失败可回滚。
@@ -194,3 +226,98 @@ export REXOS_WEBHOOK_URL="https://example.com/my-webhook"
 rexos agent run --workspace . --prompt "使用 channel_send 入队：channel=webhook recipient=user1 message=hello"
 rexos channel drain
 ```
+
+---
+
+## 10) 浏览器 Demo：有界面打开 + 截图 + 写总结（example.com）
+
+用于验证浏览器自动化端到端可用，并且会在你的 workspace 里留下**可复现的产物**。
+
+### 步骤
+
+1) 安装 Playwright（Python）：
+
+```bash
+python3 -m pip install playwright
+python3 -m playwright install chromium
+```
+
+2) 运行 demo（有界面模式）：
+
+=== "Bash (macOS/Linux)"
+    ```bash
+    export REXOS_BROWSER_HEADLESS=0
+    rexos agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把 3 条要点写到 notes/example.md，并把截图保存到 .rexos/browser/example.png，然后关闭浏览器。"
+    ```
+
+=== "PowerShell (Windows)"
+    ```powershell
+    $env:REXOS_BROWSER_HEADLESS = "0"
+    rexos agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把 3 条要点写到 notes/example.md，并把截图保存到 .rexos/browser/example.png，然后关闭浏览器。"
+    ```
+
+### 预期结果
+
+- `notes/example.md`
+- `.rexos/browser/example.png`
+
+---
+
+## 11) 浏览器 + Ollama：百度“今天天气”（更接近真实场景）
+
+这是更“真实”的 flow：打开搜索结果页 → 提取天气信息 → 写入文件并截图留证。
+
+### 步骤
+
+1) 确保 Ollama 有一个指令模型（示例）：
+
+```bash
+ollama pull qwen3:4b
+```
+
+2)（可选，推荐）把它设为 RexOS 默认模型：
+
+编辑 `~/.rexos/config.toml`，设置：
+
+```toml
+[providers.ollama]
+default_model = "qwen3:4b"
+```
+
+3) 运行（有界面模式）：
+
+=== "Bash (macOS/Linux)"
+    ```bash
+    export REXOS_BROWSER_HEADLESS=0
+    rexos agent run --workspace . --prompt "使用 browser 工具打开 https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC%20%E4%BB%8A%E5%A4%A9%E5%A4%A9%E6%B0%94 。等待 #content_left 出现后读取页面。请从页面文本中提取“今天天气”的关键信息（天气现象、温度范围、风力/风向），写入 notes/weather.md。把截图保存到 .rexos/browser/baidu_weather.png。最后关闭浏览器。如果找不到天气信息，请说明找不到，但仍要保存截图。"
+    ```
+
+=== "PowerShell (Windows)"
+    ```powershell
+    $env:REXOS_BROWSER_HEADLESS = "0"
+    rexos agent run --workspace . --prompt "使用 browser 工具打开 https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC%20%E4%BB%8A%E5%A4%A9%E5%A4%A9%E6%B0%94 。等待 #content_left 出现后读取页面。请从页面文本中提取“今天天气”的关键信息（天气现象、温度范围、风力/风向），写入 notes/weather.md。把截图保存到 .rexos/browser/baidu_weather.png。最后关闭浏览器。如果找不到天气信息，请说明找不到，但仍要保存截图。"
+    ```
+
+### 预期结果
+
+- `notes/weather.md`
+- `.rexos/browser/baidu_weather.png`
+
+!!! note "如果遇到验证码（CAPTCHA）"
+    某些网站可能会弹验证码或限制自动化。如果遇到这种情况，可以换个站点/关键词，或者在内容不依赖 JS 的情况下改用 `web_search` + `web_fetch`。
+
+---
+
+## 12)（从源码）运行浏览器 + Ollama smoke test
+
+如果你在开发 RexOS 本身，可以运行这个被 `#[ignore]` 的 smoke test：
+
+```bash
+REXOS_OLLAMA_MODEL=qwen3:4b cargo test -p rexos --test browser_baidu_weather_smoke -- --ignored --nocapture
+```
+
+预期输出会包含类似：
+
+- `[rexos][baidu_weather] summary=...`
+
+注意：该测试使用临时 workspace 并会自动清理；如果你想保留截图/文件，建议用上面的配方跑 `rexos agent run`。
