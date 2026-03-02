@@ -93,6 +93,7 @@ RexOS 不会做基于 IP 的地理定位推断。
 以下工具由 agent runtime 实现（不是独立的 `Toolset`），状态会持久化到 `~/.rexos/rexos.db`：
 
 - `agent_spawn` / `agent_list` / `agent_find` / `agent_send` / `agent_kill`
+- `hand_list` / `hand_activate` / `hand_status` / `hand_deactivate`
 - `task_post` / `task_claim` / `task_complete` / `task_list`
 - `event_publish`
 - `schedule_create` / `schedule_list` / `schedule_delete`
@@ -112,13 +113,55 @@ RexOS 不会做基于 IP 的地理定位推断。
 - `console`：drain 时打印到 stdout
 - `webhook`：POST JSON 到 `REXOS_WEBHOOK_URL`
 
-## 预留工具（stubs）
+## `hand_*`
 
-以下工具名已定义，但当前会直接返回 `tool not implemented yet: <name>`：
+Hands 是一组小而精的“agent 模板”，用于快速启动一个专用 agent 实例。
 
-`hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`,
-`a2a_discover`, `a2a_send`,
-`text_to_speech`, `speech_to_text`,
-`docker_exec`,
-`process_start`, `process_poll`, `process_write`, `process_kill`, `process_list`,
-`canvas_present`。
+- `hand_list`：列出内置 Hands 以及是否处于 active 状态
+- `hand_activate`：激活某个 Hand，返回 `{instance_id, agent_id, ...}`
+- `hand_status`：查询某个 `hand_id` 当前是否有 active 实例
+- `hand_deactivate`：按 `instance_id` 停用实例（会 kill 对应的底层 agent）
+
+`hand_activate` 后可用 `agent_send` 与返回的 `agent_id` 交互。
+
+## `a2a_*`
+
+A2A 工具用于与外部 A2A 兼容 agent 交互：
+
+- `a2a_discover`：抓取 `/.well-known/agent.json` 的 agent card
+- `a2a_send`：向 A2A endpoint 发送 JSON-RPC `tasks/send`
+
+默认带 SSRF 防护；本地测试可用 `allow_private=true` 显式放开。
+
+## `speech_to_text`
+
+将媒体转成文本。
+
+MVP 行为：支持 **文本转写/字幕文件**（`.txt`、`.md`、`.srt`、`.vtt`），返回 JSON（`transcript` 与 `text`）。
+
+## `text_to_speech`
+
+将文本转换为音频文件。
+
+MVP 行为：在 workspace 内写出一个短 `.wav` 文件（作为真实 TTS 的占位实现）。
+
+## `docker_exec`
+
+在一次性 Docker 容器内执行命令（会挂载 workspace）。
+
+- 默认禁用：设置 `REXOS_DOCKER_EXEC_ENABLED=1`
+- 可选镜像：`REXOS_DOCKER_EXEC_IMAGE`（默认 `alpine:3.20`）
+
+## `process_*`
+
+启动并与长运行进程交互：
+
+- `process_start` / `process_poll` / `process_write` / `process_kill` / `process_list`
+
+进程以 workspace 为工作目录，并使用尽量最小的环境。
+
+## `canvas_present`
+
+将一段经过清洗的 HTML 保存到 workspace（`output/` 目录下），并返回元数据（`saved_to`、`canvas_id` 等）。
+
+会拒绝脚本、事件处理器属性（如 `onclick=`）、以及 `javascript:` URL。

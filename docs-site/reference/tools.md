@@ -93,6 +93,7 @@ For now this tool outputs **SVG** to a workspace-relative `path` (use a `.svg` f
 These tools are implemented by the agent runtime (not by the standalone `Toolset`) and persist state in `~/.rexos/rexos.db`:
 
 - `agent_spawn` / `agent_list` / `agent_find` / `agent_send` / `agent_kill`
+- `hand_list` / `hand_activate` / `hand_status` / `hand_deactivate`
 - `task_post` / `task_claim` / `task_complete` / `task_list`
 - `event_publish`
 - `schedule_create` / `schedule_list` / `schedule_delete`
@@ -112,13 +113,55 @@ Supported channels:
 - `console`: prints the message on drain
 - `webhook`: posts JSON to `REXOS_WEBHOOK_URL`
 
-## Reserved tools (stubs)
+## `hand_*`
 
-The following tool names are defined but currently return `tool not implemented yet: <name>`:
+Hands are small, curated “agent templates” that spawn a specialized agent instance.
 
-`hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`,
-`a2a_discover`, `a2a_send`,
-`text_to_speech`, `speech_to_text`,
-`docker_exec`,
-`process_start`, `process_poll`, `process_write`, `process_kill`, `process_list`,
-`canvas_present`.
+- `hand_list`: list built-in Hands and whether they are active.
+- `hand_activate`: activates a Hand and returns `{instance_id, agent_id, ...}`.
+- `hand_status`: returns the current active instance (if any) for a `hand_id`.
+- `hand_deactivate`: deactivates a Hand instance by `instance_id` (kills its underlying agent).
+
+After `hand_activate`, you can use `agent_send` to talk to the returned `agent_id`.
+
+## `a2a_*`
+
+A2A tools let RexOS talk to external A2A-compatible agents:
+
+- `a2a_discover`: fetches the agent card at `/.well-known/agent.json`
+- `a2a_send`: sends a JSON-RPC `tasks/send` request to an A2A endpoint URL
+
+Both are SSRF-protected by default; for local testing you can set `allow_private=true`.
+
+## `speech_to_text`
+
+Transcribe media into text.
+
+MVP behavior: supports **text transcript files** (`.txt`, `.md`, `.srt`, `.vtt`) and returns JSON with `transcript` and `text`.
+
+## `text_to_speech`
+
+Convert text into an audio file.
+
+MVP behavior: writes a short `.wav` file to the workspace (placeholder for real TTS).
+
+## `docker_exec`
+
+Run a command inside a one-shot Docker container with the workspace mounted.
+
+- Disabled by default: set `REXOS_DOCKER_EXEC_ENABLED=1`
+- Optional image override: `REXOS_DOCKER_EXEC_IMAGE` (default `alpine:3.20`)
+
+## `process_*`
+
+Start and interact with long-running processes:
+
+- `process_start` / `process_poll` / `process_write` / `process_kill` / `process_list`
+
+Processes run with the workspace as the working directory and a minimal environment.
+
+## `canvas_present`
+
+Save sanitized HTML to the workspace (under `output/`) and return metadata (`saved_to`, `canvas_id`, ...).
+
+Scripts, event handlers (e.g. `onclick=`), and `javascript:` URLs are rejected.
