@@ -112,6 +112,7 @@ rexos agent run --workspace . --prompt "使用 browser 工具打开 https://exam
 
 - `browser_navigate` 默认拒绝 loopback/private 目标；只有本地/私网测试才建议显式开启 `allow_private=true`。
 - `browser_read_page` 与 `browser_screenshot` 也会做同样的 loopback/private 防护（除非你开启了 `allow_private`）。
+- Browser 工具只允许 `http(s)` URL（`file:` / `data:` / `chrome:` 等 scheme 会被拦截）。
 - `browser_screenshot` 只允许写到 workspace 相对路径（不允许绝对路径、不允许 `..`、不允许通过 symlink 逃逸）。
 
 ## 故障排查

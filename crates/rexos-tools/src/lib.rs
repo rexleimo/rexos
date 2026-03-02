@@ -1332,13 +1332,9 @@ impl Toolset {
                     .await?;
                     BrowserSession::Cdp(s)
                 }
-                BrowserBackend::Playwright => {
-                    BrowserSession::Playwright(PlaywrightBrowserSession::spawn(
-                        headless,
-                        allow_private,
-                    )
-                    .await?)
-                }
+                BrowserBackend::Playwright => BrowserSession::Playwright(
+                    PlaywrightBrowserSession::spawn(headless, allow_private).await?,
+                ),
             };
             *guard = Some(session);
         } else {
@@ -1364,6 +1360,9 @@ impl Toolset {
         let session = guard.as_mut().expect("set above");
         session.set_allow_private(allow_private);
         let out = session.navigate(url.as_str()).await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
+        }
         Ok(out.to_string())
     }
 
@@ -3664,22 +3663,22 @@ async fn resolve_host_ips(host: &str, port: u16) -> anyhow::Result<Vec<IpAddr>> 
 }
 
 async fn ensure_browser_url_allowed(url: &str, allow_private: bool) -> anyhow::Result<()> {
+    let url = reqwest::Url::parse(url).context("parse url")?;
+
+    match url.scheme() {
+        "http" | "https" => {}
+        // Safe, non-network internal pages we still want to allow for screenshots/debugging.
+        "about" if url.as_str() == "about:blank" => return Ok(()),
+        "chrome-error" if matches!(url.host_str(), Some("chromewebdata")) => return Ok(()),
+        _ => bail!("only http/https urls are allowed"),
+    }
+
     if allow_private {
         return Ok(());
     }
 
-    let url = match reqwest::Url::parse(url) {
-        Ok(v) => v,
-        Err(_) => return Ok(()),
-    };
-
-    match url.scheme() {
-        "http" | "https" => {}
-        _ => return Ok(()),
-    }
-
-    let Some(host) = url.host_str() else { return Ok(()) };
-    let Some(port) = url.port_or_known_default() else { return Ok(()) };
+    let host = url.host_str().context("url missing host")?;
+    let port = url.port_or_known_default().context("url missing port")?;
 
     let ips = resolve_host_ips(host, port)
         .await
@@ -3764,6 +3763,35 @@ mod tests {
         assert!(validate_relative_path("").is_err());
         assert!(validate_relative_path(".").is_err());
         assert!(validate_relative_path("./../a").is_err());
+    }
+
+    #[tokio::test]
+    async fn ensure_browser_url_allowed_rejects_file_scheme_even_when_allow_private_true() {
+        let err = ensure_browser_url_allowed("file:///etc/passwd", true)
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("http/https"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn ensure_browser_url_allowed_allows_about_blank() {
+        ensure_browser_url_allowed("about:blank", false)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn ensure_browser_url_allowed_allows_chrome_error_page() {
+        ensure_browser_url_allowed("chrome-error://chromewebdata/", false)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn ensure_browser_url_allowed_allows_public_ip_http() {
+        ensure_browser_url_allowed("http://1.1.1.1", false)
+            .await
+            .unwrap();
     }
 
     #[test]

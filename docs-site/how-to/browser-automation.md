@@ -115,6 +115,7 @@ rexos agent run --workspace . --prompt "Use browser tools to open https://exampl
 
 - `browser_navigate` denies loopback/private targets by default. Use `allow_private=true` only for local/private testing.
 - `browser_read_page` and `browser_screenshot` also enforce the same loopback/private protection (unless you enabled `allow_private`).
+- Browser tools only allow `http(s)` URLs (schemes like `file:`, `data:`, `chrome:` are blocked).
 - `browser_screenshot` only writes to workspace-relative paths (no absolute paths, no `..`, no symlink escapes).
 
 ## Troubleshooting
