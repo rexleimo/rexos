@@ -2,6 +2,8 @@
 
 当 `web_fetch` 不够用（JS 渲染页面、多步交互、表单填写、需要截图留证）时，使用 `browser_*` 工具更可靠。
 
+更多可复制粘贴的配方见：[浏览器案例](browser-use-cases.md)。
+
 ## 前置条件
 
 安装 Playwright（Python）：
