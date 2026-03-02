@@ -113,6 +113,16 @@ impl Toolset {
                     serde_json::from_str(arguments_json).context("parse web_search arguments")?;
                 self.web_search(&args.query, args.max_results).await
             }
+            "image_analyze" => {
+                let args: ImageAnalyzeArgs = serde_json::from_str(arguments_json)
+                    .context("parse image_analyze arguments")?;
+                self.image_analyze(&args.path)
+            }
+            "location_get" => {
+                let _args: serde_json::Value = serde_json::from_str(arguments_json)
+                    .context("parse location_get arguments")?;
+                self.location_get()
+            }
             "browser_navigate" => {
                 let args: BrowserNavigateArgs = serde_json::from_str(arguments_json)
                     .context("parse browser_navigate arguments")?;
@@ -165,12 +175,13 @@ impl Toolset {
             | "knowledge_query" => {
                 bail!("tool '{name}' is implemented in the runtime, not Toolset")
             }
-            "image_analyze" | "location_get" | "media_describe" | "media_transcribe"
-            | "image_generate" | "cron_create" | "cron_list" | "cron_cancel" | "channel_send"
-            | "hand_list" | "hand_activate" | "hand_status" | "hand_deactivate"
-            | "a2a_discover" | "a2a_send" | "text_to_speech" | "speech_to_text" | "docker_exec"
-            | "process_start" | "process_poll" | "process_write" | "process_kill"
-            | "process_list" | "canvas_present" => bail!("tool not implemented yet: {name}"),
+            "media_describe" | "media_transcribe" | "image_generate" | "cron_create" | "cron_list"
+            | "cron_cancel" | "channel_send" | "hand_list" | "hand_activate" | "hand_status"
+            | "hand_deactivate" | "a2a_discover" | "a2a_send" | "text_to_speech"
+            | "speech_to_text" | "docker_exec" | "process_start" | "process_poll"
+            | "process_write" | "process_kill" | "process_list" | "canvas_present" => {
+                bail!("tool not implemented yet: {name}")
+            }
             _ => bail!("unknown tool: {name}"),
         }
     }
@@ -431,6 +442,45 @@ impl Toolset {
             "body": body,
             "truncated": truncated,
             "bytes": slice.len(),
+        })
+        .to_string())
+    }
+
+    fn image_analyze(&self, user_path: &str) -> anyhow::Result<String> {
+        let path = self.resolve_workspace_path(user_path)?;
+        let meta = std::fs::metadata(&path).with_context(|| format!("stat {}", path.display()))?;
+        if meta.len() > 10_000_000 {
+            bail!("image too large: {} bytes", meta.len());
+        }
+
+        let bytes = std::fs::read(&path).with_context(|| format!("read {}", path.display()))?;
+        let Some((format, width, height)) = detect_image_format_and_dimensions(&bytes) else {
+            bail!("unsupported image format (expected png/jpeg/gif)");
+        };
+
+        Ok(serde_json::json!({
+            "path": user_path,
+            "format": format,
+            "width": width,
+            "height": height,
+            "bytes": bytes.len(),
+        })
+        .to_string())
+    }
+
+    fn location_get(&self) -> anyhow::Result<String> {
+        let tz = std::env::var("TZ").ok().filter(|v| !v.trim().is_empty());
+        let lang = std::env::var("LANG").ok().filter(|v| !v.trim().is_empty());
+        let lc_all = std::env::var("LC_ALL").ok().filter(|v| !v.trim().is_empty());
+
+        Ok(serde_json::json!({
+            "os": std::env::consts::OS,
+            "arch": std::env::consts::ARCH,
+            "tz": tz,
+            "lang": lang,
+            "lc_all": lc_all,
+            "geolocation": null,
+            "note": "Exact geolocation is not available; RexOS only reports environment metadata.",
         })
         .to_string())
     }
@@ -856,6 +906,11 @@ struct WebSearchArgs {
 }
 
 #[derive(Debug, serde::Deserialize)]
+struct ImageAnalyzeArgs {
+    path: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
 struct BrowserNavigateArgs {
     url: String,
     #[serde(default)]
@@ -905,6 +960,106 @@ fn validate_relative_path(user_path: &str) -> anyhow::Result<PathBuf> {
         bail!("invalid path");
     }
     Ok(out)
+}
+
+fn detect_image_format_and_dimensions(bytes: &[u8]) -> Option<(&'static str, u32, u32)> {
+    if let Some((w, h)) = parse_png_dimensions(bytes) {
+        return Some(("png", w, h));
+    }
+    if let Some((w, h)) = parse_jpeg_dimensions(bytes) {
+        return Some(("jpeg", w, h));
+    }
+    if let Some((w, h)) = parse_gif_dimensions(bytes) {
+        return Some(("gif", w, h));
+    }
+    None
+}
+
+fn parse_png_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    const SIG: [u8; 8] = [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+    if bytes.len() < 24 {
+        return None;
+    }
+    if bytes.get(0..8)? != SIG {
+        return None;
+    }
+    if bytes.get(12..16)? != b"IHDR" {
+        return None;
+    }
+
+    let w = u32::from_be_bytes(bytes.get(16..20)?.try_into().ok()?);
+    let h = u32::from_be_bytes(bytes.get(20..24)?.try_into().ok()?);
+    Some((w, h))
+}
+
+fn parse_gif_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.len() < 10 {
+        return None;
+    }
+    if bytes.get(0..6)? != b"GIF87a" && bytes.get(0..6)? != b"GIF89a" {
+        return None;
+    }
+    let w = u16::from_le_bytes(bytes.get(6..8)?.try_into().ok()?) as u32;
+    let h = u16::from_le_bytes(bytes.get(8..10)?.try_into().ok()?) as u32;
+    Some((w, h))
+}
+
+fn parse_jpeg_dimensions(bytes: &[u8]) -> Option<(u32, u32)> {
+    if bytes.len() < 4 {
+        return None;
+    }
+    if bytes[0] != 0xFF || bytes[1] != 0xD8 {
+        return None;
+    }
+
+    let mut i = 2usize;
+    while i + 1 < bytes.len() {
+        if bytes[i] != 0xFF {
+            i += 1;
+            continue;
+        }
+
+        while i < bytes.len() && bytes[i] == 0xFF {
+            i += 1;
+        }
+        if i >= bytes.len() {
+            break;
+        }
+
+        let marker = bytes[i];
+        i += 1;
+
+        if marker == 0xD9 || marker == 0xDA {
+            break;
+        }
+
+        if i + 1 >= bytes.len() {
+            break;
+        }
+        let seg_len = u16::from_be_bytes([bytes[i], bytes[i + 1]]) as usize;
+        i += 2;
+        if seg_len < 2 || i + seg_len - 2 > bytes.len() {
+            break;
+        }
+
+        let is_sof = matches!(
+            marker,
+            0xC0 | 0xC1 | 0xC2 | 0xC3 | 0xC5 | 0xC6 | 0xC7 | 0xC9 | 0xCA | 0xCB | 0xCD
+                | 0xCE | 0xCF
+        );
+        if is_sof {
+            if seg_len < 7 || i + 4 >= bytes.len() {
+                return None;
+            }
+            let h = u16::from_be_bytes([bytes[i + 1], bytes[i + 2]]) as u32;
+            let w = u16::from_be_bytes([bytes[i + 3], bytes[i + 4]]) as u32;
+            return Some((w, h));
+        }
+
+        i += seg_len - 2;
+    }
+
+    None
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1605,10 +1760,36 @@ fn compat_tool_defs() -> Vec<ToolDefinition> {
         },
     });
 
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "image_analyze".to_string(),
+            description: "Analyze an image file in the workspace (basic metadata).".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Workspace-relative image path." }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+        },
+    });
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "location_get".to_string(),
+            description: "Get environment location metadata (os/arch/tz).".to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+        },
+    });
+
     // Reserved tool names (stubs in RexOS for now).
     for name in [
-        "image_analyze",
-        "location_get",
         "media_describe",
         "media_transcribe",
         "image_generate",
@@ -2028,9 +2209,51 @@ mod tests {
     async fn reserved_stub_tools_return_not_implemented_error() {
         let tmp = tempfile::tempdir().unwrap();
         let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
-        let err = tools.call("image_analyze", r#"{}"#).await.unwrap_err();
+        let err = tools.call("media_describe", r#"{}"#).await.unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("not implemented"), "{msg}");
+    }
+
+    #[tokio::test]
+    async fn image_analyze_returns_dimensions_for_png() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let png_1x1 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+X2OQAAAAASUVORK5CYII=";
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(png_1x1)
+            .expect("decode png base64");
+        std::fs::write(workspace.join("img.png"), bytes).unwrap();
+
+        let tools = Toolset::new(workspace).unwrap();
+        let out = tools
+            .call("image_analyze", r#"{ "path": "img.png" }"#)
+            .await
+            .unwrap();
+
+        let v: serde_json::Value = serde_json::from_str(&out).expect("image_analyze is json");
+        assert_eq!(v.get("width").and_then(|v| v.as_u64()), Some(1), "{v}");
+        assert_eq!(v.get("height").and_then(|v| v.as_u64()), Some(1), "{v}");
+    }
+
+    #[tokio::test]
+    async fn location_get_returns_environment_metadata() {
+        let tmp = tempfile::tempdir().unwrap();
+        let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
+        let out = tools.call("location_get", r#"{}"#).await.unwrap();
+
+        let v: serde_json::Value = serde_json::from_str(&out).expect("location_get is json");
+        assert_eq!(
+            v.get("os").and_then(|v| v.as_str()),
+            Some(std::env::consts::OS),
+            "{v}"
+        );
+        assert_eq!(
+            v.get("arch").and_then(|v| v.as_str()),
+            Some(std::env::consts::ARCH),
+            "{v}"
+        );
     }
 
     #[tokio::test]

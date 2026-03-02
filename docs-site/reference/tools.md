@@ -60,6 +60,18 @@ These tool names exist for compatibility and map to RexOS built-ins:
 - `web_search` → DuckDuckGo HTML search (best-effort; returns a short text list)
 - `memory_store` / `memory_recall` → shared KV store persisted in `~/.rexos/rexos.db`
 
+## `image_analyze`
+
+Analyze an image file in the workspace and return basic metadata as JSON (`format`, `width`, `height`, `bytes`).
+
+Supported formats: PNG, JPEG, GIF.
+
+## `location_get`
+
+Return environment metadata as JSON (`os`, `arch`, `tz`, `lang`).
+
+RexOS does not perform IP-based geolocation.
+
 ## Runtime collaboration and scheduling tools
 
 These tools are implemented by the agent runtime (not by the standalone `Toolset`) and persist state in `~/.rexos/rexos.db`:
@@ -74,7 +86,6 @@ These tools are implemented by the agent runtime (not by the standalone `Toolset
 
 The following tool names are defined but currently return `tool not implemented yet: <name>`:
 
-`image_analyze`, `location_get`,
 `media_describe`, `media_transcribe`, `image_generate`,
 `cron_create`, `cron_list`, `cron_cancel`,
 `channel_send`,

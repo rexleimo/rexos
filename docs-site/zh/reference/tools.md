@@ -60,6 +60,18 @@ RexOS 会强制超时，并使用尽量最小的环境。
 - `web_search` → DuckDuckGo HTML 搜索（best-effort；返回简短文本列表）
 - `memory_store` / `memory_recall` → 共享 KV（持久化在 `~/.rexos/rexos.db`）
 
+## `image_analyze`
+
+分析 workspace 内的图片文件，并返回基础元数据 JSON（`format`、`width`、`height`、`bytes`）。
+
+当前支持：PNG、JPEG、GIF。
+
+## `location_get`
+
+返回环境元数据 JSON（`os`、`arch`、`tz`、`lang`）。
+
+RexOS 不会做基于 IP 的地理定位推断。
+
 ## Runtime 协作与调度工具
 
 以下工具由 agent runtime 实现（不是独立的 `Toolset`），状态会持久化到 `~/.rexos/rexos.db`：
@@ -74,7 +86,6 @@ RexOS 会强制超时，并使用尽量最小的环境。
 
 以下工具名已定义，但当前会直接返回 `tool not implemented yet: <name>`：
 
-`image_analyze`, `location_get`,
 `media_describe`, `media_transcribe`, `image_generate`,
 `cron_create`, `cron_list`, `cron_cancel`,
 `channel_send`,
