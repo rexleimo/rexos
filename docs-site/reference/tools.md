@@ -96,13 +96,13 @@ These tools are implemented by the agent runtime (not by the standalone `Toolset
 - `task_post` / `task_claim` / `task_complete` / `task_list`
 - `event_publish`
 - `schedule_create` / `schedule_list` / `schedule_delete`
+- `cron_create` / `cron_list` / `cron_cancel`
 - `knowledge_add_entity` / `knowledge_add_relation` / `knowledge_query`
 
 ## Reserved tools (stubs)
 
 The following tool names are defined but currently return `tool not implemented yet: <name>`:
 
-`cron_create`, `cron_list`, `cron_cancel`,
 `channel_send`,
 `hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`,
 `a2a_discover`, `a2a_send`,

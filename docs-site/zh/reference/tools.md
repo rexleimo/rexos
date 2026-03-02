@@ -96,13 +96,13 @@ RexOS 不会做基于 IP 的地理定位推断。
 - `task_post` / `task_claim` / `task_complete` / `task_list`
 - `event_publish`
 - `schedule_create` / `schedule_list` / `schedule_delete`
+- `cron_create` / `cron_list` / `cron_cancel`
 - `knowledge_add_entity` / `knowledge_add_relation` / `knowledge_query`
 
 ## 预留工具（stubs）
 
 以下工具名已定义，但当前会直接返回 `tool not implemented yet: <name>`：
 
-`cron_create`, `cron_list`, `cron_cancel`,
 `channel_send`,
 `hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`,
 `a2a_discover`, `a2a_send`,

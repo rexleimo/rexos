@@ -198,6 +198,17 @@ impl AgentRuntime {
                             .context("parse schedule_delete args")?;
                         self.schedule_delete(&args.id).context("schedule_delete")?
                     }
+                    "cron_create" => {
+                        let args: CronCreateToolArgs =
+                            serde_json::from_str(&args_json).context("parse cron_create args")?;
+                        self.cron_create(args).context("cron_create")?
+                    }
+                    "cron_list" => self.cron_list().context("cron_list")?,
+                    "cron_cancel" => {
+                        let args: CronCancelToolArgs =
+                            serde_json::from_str(&args_json).context("parse cron_cancel args")?;
+                        self.cron_cancel(&args.job_id).context("cron_cancel")?
+                    }
                     "knowledge_add_entity" => {
                         let args: KnowledgeAddEntityToolArgs = serde_json::from_str(&args_json)
                             .context("parse knowledge_add_entity args")?;
@@ -662,6 +673,69 @@ impl AgentRuntime {
         Ok("ok".to_string())
     }
 
+    fn cron_jobs_get(&self) -> anyhow::Result<Vec<CronJobRecord>> {
+        let key = "rexos.cron.jobs";
+        let raw = self
+            .memory
+            .kv_get(key)
+            .context("kv_get rexos.cron.jobs")?
+            .unwrap_or_else(|| "[]".to_string());
+        let jobs: Vec<CronJobRecord> = serde_json::from_str(&raw).unwrap_or_default();
+        Ok(jobs)
+    }
+
+    fn cron_jobs_set(&self, jobs: &[CronJobRecord]) -> anyhow::Result<()> {
+        let key = "rexos.cron.jobs";
+        let raw = serde_json::to_string(jobs).context("serialize rexos.cron.jobs")?;
+        self.memory
+            .kv_set(key, &raw)
+            .context("kv_set rexos.cron.jobs")?;
+        Ok(())
+    }
+
+    fn cron_create(&self, args: CronCreateToolArgs) -> anyhow::Result<String> {
+        let job_id = args.job_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let mut jobs = self.cron_jobs_get()?;
+        if let Some(existing) = jobs.iter().find(|j| j.job_id == job_id) {
+            return Ok(serde_json::to_string(existing).unwrap_or_else(|_| "ok".to_string()));
+        }
+
+        let record = CronJobRecord {
+            job_id: job_id.clone(),
+            name: args.name,
+            schedule: args.schedule,
+            action: args.action,
+            delivery: args.delivery,
+            one_shot: args.one_shot.unwrap_or(false),
+            created_at: Self::now_epoch_seconds(),
+            enabled: args.enabled.unwrap_or(true),
+        };
+
+        jobs.push(record.clone());
+        if jobs.len() > 200 {
+            jobs.drain(0..(jobs.len() - 200));
+        }
+        self.cron_jobs_set(&jobs)?;
+
+        Ok(serde_json::to_string(&record).unwrap_or_else(|_| "ok".to_string()))
+    }
+
+    fn cron_list(&self) -> anyhow::Result<String> {
+        let jobs = self.cron_jobs_get()?;
+        Ok(serde_json::to_string(&jobs).context("serialize cron_list")?)
+    }
+
+    fn cron_cancel(&self, job_id: &str) -> anyhow::Result<String> {
+        let mut jobs = self.cron_jobs_get()?;
+        let before = jobs.len();
+        jobs.retain(|j| j.job_id != job_id);
+        if jobs.len() == before {
+            return Ok(format!("error: cron job not found: {job_id}"));
+        }
+        self.cron_jobs_set(&jobs)?;
+        Ok("ok".to_string())
+    }
+
     fn knowledge_entities_get(&self) -> anyhow::Result<Vec<KnowledgeEntityRecord>> {
         let key = "rexos.knowledge.entities";
         let raw = self
@@ -948,6 +1022,41 @@ struct ScheduleCreateToolArgs {
 #[derive(Debug, serde::Deserialize)]
 struct ScheduleDeleteToolArgs {
     id: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct CronJobRecord {
+    job_id: String,
+    name: String,
+    schedule: serde_json::Value,
+    action: serde_json::Value,
+    #[serde(default)]
+    delivery: Option<serde_json::Value>,
+    one_shot: bool,
+    created_at: i64,
+    enabled: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct CronCreateToolArgs {
+    #[serde(default)]
+    #[serde(alias = "id")]
+    job_id: Option<String>,
+    name: String,
+    schedule: serde_json::Value,
+    action: serde_json::Value,
+    #[serde(default)]
+    delivery: Option<serde_json::Value>,
+    #[serde(default)]
+    one_shot: Option<bool>,
+    #[serde(default)]
+    enabled: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct CronCancelToolArgs {
+    #[serde(alias = "id")]
+    job_id: String,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
