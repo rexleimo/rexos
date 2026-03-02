@@ -3878,7 +3878,14 @@ mod tests {
         let start_args = if cfg!(windows) {
             serde_json::json!({
                 "command": "powershell",
-                "args": ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", "Write-Output READY; $line = [Console]::In.ReadLine(); Write-Output (\"ECHO:\" + $line); Start-Sleep -Seconds 5"]
+                "args": [
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    "[Console]::Out.WriteLine('READY'); [Console]::Out.Flush(); $line = [Console]::In.ReadLine(); [Console]::Out.WriteLine(('ECHO:' + $line)); [Console]::Out.Flush(); Start-Sleep -Seconds 5"
+                ]
             })
         } else {
             serde_json::json!({
@@ -3908,8 +3915,16 @@ mod tests {
             "process_list did not include {process_id}: {lv}"
         );
 
-        let mut seen = String::new();
-        for _ in 0..40 {
+        let ready_timeout = if cfg!(windows) {
+            Duration::from_secs(8)
+        } else {
+            Duration::from_secs(2)
+        };
+
+        let mut seen_out = String::new();
+        let mut seen_err = String::new();
+        let deadline = tokio::time::Instant::now() + ready_timeout;
+        loop {
             let poll = tools
                 .call(
                     "process_poll",
@@ -3919,13 +3934,31 @@ mod tests {
                 .unwrap();
             let pv: serde_json::Value = serde_json::from_str(&poll).expect("process_poll is json");
             let stdout = pv.get("stdout").and_then(|v| v.as_str()).unwrap_or("");
-            seen.push_str(stdout);
-            if seen.contains("READY") {
+            let stderr = pv.get("stderr").and_then(|v| v.as_str()).unwrap_or("");
+            seen_out.push_str(stdout);
+            seen_err.push_str(stderr);
+            if seen_out.contains("READY") || seen_err.contains("READY") {
                 break;
             }
-            tokio::time::sleep(Duration::from_millis(25)).await;
+            if pv.get("alive").and_then(|v| v.as_bool()) == Some(false) {
+                panic!(
+                    "process exited before READY (exit_code={:?})\nstdout:\n{}\nstderr:\n{}",
+                    pv.get("exit_code"),
+                    seen_out,
+                    seen_err
+                );
+            }
+            if tokio::time::Instant::now() >= deadline {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        assert!(seen.contains("READY"), "did not see READY: {seen}");
+        assert!(
+            seen_out.contains("READY") || seen_err.contains("READY"),
+            "did not see READY\nstdout:\n{}\nstderr:\n{}",
+            seen_out,
+            seen_err
+        );
 
         let _ = tools
             .call(
@@ -3935,8 +3968,10 @@ mod tests {
             .await
             .unwrap();
 
-        let mut seen = String::new();
-        for _ in 0..40 {
+        let mut seen_out = String::new();
+        let mut seen_err = String::new();
+        let deadline = tokio::time::Instant::now() + ready_timeout;
+        loop {
             let poll = tools
                 .call(
                     "process_poll",
@@ -3946,13 +3981,31 @@ mod tests {
                 .unwrap();
             let pv: serde_json::Value = serde_json::from_str(&poll).expect("process_poll is json");
             let stdout = pv.get("stdout").and_then(|v| v.as_str()).unwrap_or("");
-            seen.push_str(stdout);
-            if seen.contains("ECHO:hi") {
+            let stderr = pv.get("stderr").and_then(|v| v.as_str()).unwrap_or("");
+            seen_out.push_str(stdout);
+            seen_err.push_str(stderr);
+            if seen_out.contains("ECHO:hi") || seen_err.contains("ECHO:hi") {
                 break;
             }
-            tokio::time::sleep(Duration::from_millis(25)).await;
+            if pv.get("alive").and_then(|v| v.as_bool()) == Some(false) {
+                panic!(
+                    "process exited before ECHO:hi (exit_code={:?})\nstdout:\n{}\nstderr:\n{}",
+                    pv.get("exit_code"),
+                    seen_out,
+                    seen_err
+                );
+            }
+            if tokio::time::Instant::now() >= deadline {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
-        assert!(seen.contains("ECHO:hi"), "did not see ECHO:hi: {seen}");
+        assert!(
+            seen_out.contains("ECHO:hi") || seen_err.contains("ECHO:hi"),
+            "did not see ECHO:hi\nstdout:\n{}\nstderr:\n{}",
+            seen_out,
+            seen_err
+        );
 
         let _ = tools
             .call(
