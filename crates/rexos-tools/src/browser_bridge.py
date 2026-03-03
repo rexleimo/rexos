@@ -65,6 +65,36 @@ def main() -> int:
                     page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
                     current_url = page.url
                     respond({"success": True, "data": {"title": page.title(), "url": current_url}})
+                elif action == "Back":
+                    try:
+                        page.go_back(wait_until="domcontentloaded", timeout=timeout_ms)
+                    except Exception:
+                        pass
+                    current_url = page.url if page.url else current_url
+                    respond({"success": True, "data": {"title": page.title(), "url": current_url}})
+                elif action == "Scroll":
+                    direction = cmd.get("direction", "down")
+                    amount = cmd.get("amount", 600)
+                    try:
+                        amount = int(amount)
+                    except Exception:
+                        amount = 600
+
+                    dx, dy = 0, 0
+                    if direction == "up":
+                        dy = -amount
+                    elif direction == "down":
+                        dy = amount
+                    elif direction == "left":
+                        dx = -amount
+                    elif direction == "right":
+                        dx = amount
+
+                    pos = page.evaluate(
+                        "({dx, dy}) => { window.scrollBy(dx, dy); return {scrollX: window.scrollX || 0, scrollY: window.scrollY || 0}; }",
+                        {"dx": dx, "dy": dy},
+                    )
+                    respond({"success": True, "data": pos})
                 elif action == "Click":
                     selector = cmd.get("selector", "")
                     if not selector:
@@ -151,6 +181,20 @@ def main() -> int:
                             },
                         }
                     )
+                elif action == "RunJs":
+                    expression = cmd.get("expression", "")
+                    if not expression:
+                        respond({"success": False, "error": "missing expression"})
+                        continue
+
+                    result = page.evaluate(expression)
+                    try:
+                        json.dumps(result)
+                    except Exception:
+                        result = str(result)
+
+                    current_url = page.url if page.url else current_url
+                    respond({"success": True, "data": {"result": result, "url": current_url}})
                 elif action == "ReadPage":
                     content = "(empty)"
                     try:

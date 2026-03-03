@@ -89,11 +89,15 @@ impl Toolset {
             shell_def(),
             web_fetch_def(),
             browser_navigate_def(),
+            browser_back_def(),
+            browser_scroll_def(),
             browser_click_def(),
             browser_type_def(),
             browser_press_key_def(),
+            browser_wait_def(),
             browser_wait_for_def(),
             browser_read_page_def(),
+            browser_run_js_def(),
             browser_screenshot_def(),
             browser_close_def(),
         ];
@@ -262,6 +266,11 @@ impl Toolset {
                 )
                 .await
             }
+            "browser_back" => {
+                let _args: serde_json::Value = serde_json::from_str(arguments_json)
+                    .context("parse browser_back arguments")?;
+                self.browser_back().await
+            }
             "browser_close" => {
                 let _args: serde_json::Value = serde_json::from_str(arguments_json)
                     .context("parse browser_close arguments")?;
@@ -283,6 +292,17 @@ impl Toolset {
                 self.browser_press_key(args.selector.as_deref(), &args.key)
                     .await
             }
+            "browser_scroll" => {
+                let args: BrowserScrollArgs = serde_json::from_str(arguments_json)
+                    .context("parse browser_scroll arguments")?;
+                self.browser_scroll(args.direction.as_deref(), args.amount)
+                    .await
+            }
+            "browser_wait" => {
+                let args: BrowserWaitArgs = serde_json::from_str(arguments_json)
+                    .context("parse browser_wait arguments")?;
+                self.browser_wait(&args.selector, args.timeout_ms).await
+            }
             "browser_wait_for" => {
                 let args: BrowserWaitForArgs = serde_json::from_str(arguments_json)
                     .context("parse browser_wait_for arguments")?;
@@ -297,6 +317,11 @@ impl Toolset {
                 let _args: serde_json::Value = serde_json::from_str(arguments_json)
                     .context("parse browser_read_page arguments")?;
                 self.browser_read_page().await
+            }
+            "browser_run_js" => {
+                let args: BrowserRunJsArgs = serde_json::from_str(arguments_json)
+                    .context("parse browser_run_js arguments")?;
+                self.browser_run_js(&args.expression).await
             }
             "browser_screenshot" => {
                 let args: BrowserScreenshotArgs = serde_json::from_str(arguments_json)
@@ -1366,6 +1391,37 @@ impl Toolset {
         Ok(out.to_string())
     }
 
+    async fn browser_back(&self) -> anyhow::Result<String> {
+        let mut guard = self.browser.lock().await;
+        let session = guard
+            .as_mut()
+            .context("browser session not started; call browser_navigate first")?;
+        let out = session.back().await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
+        }
+        Ok(out.to_string())
+    }
+
+    async fn browser_scroll(
+        &self,
+        direction: Option<&str>,
+        amount: Option<i64>,
+    ) -> anyhow::Result<String> {
+        let direction = direction.unwrap_or("down").trim().to_ascii_lowercase();
+        let amount = amount.unwrap_or(600).clamp(0, 50_000);
+        if !matches!(direction.as_str(), "down" | "up" | "left" | "right") {
+            bail!("invalid direction: {direction} (expected down/up/left/right)");
+        }
+
+        let mut guard = self.browser.lock().await;
+        let session = guard
+            .as_mut()
+            .context("browser session not started; call browser_navigate first")?;
+        let out = session.scroll(&direction, amount).await?;
+        Ok(out.to_string())
+    }
+
     async fn browser_close(&self) -> anyhow::Result<String> {
         let mut guard = self.browser.lock().await;
         if let Some(mut session) = guard.take() {
@@ -1407,6 +1463,22 @@ impl Toolset {
         Ok(out.to_string())
     }
 
+    async fn browser_wait(&self, selector: &str, timeout_ms: Option<u64>) -> anyhow::Result<String> {
+        if selector.trim().is_empty() {
+            bail!("selector is empty");
+        }
+
+        let mut guard = self.browser.lock().await;
+        let session = guard
+            .as_mut()
+            .context("browser session not started; call browser_navigate first")?;
+        let out = session.wait_for(Some(selector), None, timeout_ms).await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
+        }
+        Ok(out.to_string())
+    }
+
     async fn browser_wait_for(
         &self,
         selector: Option<&str>,
@@ -1422,6 +1494,26 @@ impl Toolset {
             .as_mut()
             .context("browser session not started; call browser_navigate first")?;
         let out = session.wait_for(selector, text, timeout_ms).await?;
+        if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
+            ensure_browser_url_allowed(url, session.allow_private()).await?;
+        }
+        Ok(out.to_string())
+    }
+
+    async fn browser_run_js(&self, expression: &str) -> anyhow::Result<String> {
+        if expression.trim().is_empty() {
+            bail!("expression is empty");
+        }
+
+        if expression.len() > 100_000 {
+            bail!("expression too large");
+        }
+
+        let mut guard = self.browser.lock().await;
+        let session = guard
+            .as_mut()
+            .context("browser session not started; call browser_navigate first")?;
+        let out = session.run_js(expression).await?;
         if let Some(url) = out.get("url").and_then(|v| v.as_str()) {
             ensure_browser_url_allowed(url, session.allow_private()).await?;
         }
@@ -1737,6 +1829,30 @@ impl BrowserSession {
         }
     }
 
+    async fn back(&mut self) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.back().await,
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({ "action": "Back" }))
+                .await?
+                .into_data()?),
+        }
+    }
+
+    async fn scroll(&mut self, direction: &str, amount: i64) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => s.scroll(direction, amount).await,
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({
+                    "action": "Scroll",
+                    "direction": direction,
+                    "amount": amount,
+                }))
+                .await?
+                .into_data()?),
+        }
+    }
+
     async fn click(&mut self, selector: &str) -> anyhow::Result<serde_json::Value> {
         match self {
             Self::Cdp(s) => s.click(selector).await,
@@ -1758,6 +1874,26 @@ impl BrowserSession {
                     "action": "Type",
                     "selector": selector,
                     "text": text,
+                }))
+                .await?
+                .into_data()?),
+        }
+    }
+
+    async fn run_js(&mut self, expression: &str) -> anyhow::Result<serde_json::Value> {
+        match self {
+            Self::Cdp(s) => {
+                let result = s.run_js(expression).await?;
+                let url = s.current_url().await.ok();
+                Ok(serde_json::json!({
+                    "result": result,
+                    "url": url,
+                }))
+            }
+            Self::Playwright(s) => Ok(s
+                .send(serde_json::json!({
+                    "action": "RunJs",
+                    "expression": expression,
                 }))
                 .await?
                 .into_data()?),
@@ -2082,6 +2218,11 @@ struct BrowserNavigateArgs {
 }
 
 #[derive(Debug, serde::Deserialize)]
+struct BrowserRunJsArgs {
+    expression: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
 struct BrowserClickArgs {
     selector: String,
 }
@@ -2097,6 +2238,21 @@ struct BrowserPressKeyArgs {
     key: String,
     #[serde(default)]
     selector: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct BrowserScrollArgs {
+    #[serde(default)]
+    direction: Option<String>,
+    #[serde(default)]
+    amount: Option<i64>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct BrowserWaitArgs {
+    selector: String,
+    #[serde(default)]
+    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -3512,6 +3668,41 @@ fn browser_navigate_def() -> ToolDefinition {
     }
 }
 
+fn browser_back_def() -> ToolDefinition {
+    ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "browser_back".to_string(),
+            description: "Go back in browser history.".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": false
+            }),
+        },
+    }
+}
+
+fn browser_scroll_def() -> ToolDefinition {
+    ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "browser_scroll".to_string(),
+            description: "Scroll the current page.".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "direction": { "type": "string", "description": "Scroll direction: down/up/left/right (default down).", "enum": ["down", "up", "left", "right"] },
+                    "amount": { "type": "integer", "description": "Scroll amount in pixels (default 600).", "minimum": 0 }
+                },
+                "required": [],
+                "additionalProperties": false
+            }),
+        },
+    }
+}
+
 fn browser_click_def() -> ToolDefinition {
     ToolDefinition {
         kind: "function".to_string(),
@@ -3570,6 +3761,25 @@ fn browser_press_key_def() -> ToolDefinition {
     }
 }
 
+fn browser_wait_def() -> ToolDefinition {
+    ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "browser_wait".to_string(),
+            description: "Wait for a CSS selector to appear on the page.".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "selector": { "type": "string", "description": "CSS selector to wait for." },
+                    "timeout_ms": { "type": "integer", "description": "Optional timeout in milliseconds.", "minimum": 1 }
+                },
+                "required": ["selector"],
+                "additionalProperties": false
+            }),
+        },
+    }
+}
+
 fn browser_wait_for_def() -> ToolDefinition {
     ToolDefinition {
         kind: "function".to_string(),
@@ -3599,6 +3809,25 @@ fn browser_read_page_def() -> ToolDefinition {
                 "type": "object",
                 "properties": {},
                 "required": [],
+                "additionalProperties": false
+            }),
+        },
+    }
+}
+
+fn browser_run_js_def() -> ToolDefinition {
+    ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "browser_run_js".to_string(),
+            description: "Run a JavaScript expression on the current page and return the result."
+                .to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "expression": { "type": "string", "description": "JavaScript expression to evaluate." }
+                },
+                "required": ["expression"],
                 "additionalProperties": false
             }),
         },
@@ -3806,15 +4035,30 @@ mod tests {
 
         for name in [
             "browser_navigate",
+            "browser_back",
+            "browser_scroll",
             "browser_click",
             "browser_type",
             "browser_press_key",
+            "browser_wait",
             "browser_wait_for",
             "browser_read_page",
+            "browser_run_js",
             "browser_screenshot",
             "browser_close",
         ] {
             assert!(defs.contains(name), "missing tool definition: {name}");
+        }
+    }
+
+    #[test]
+    fn browser_bridge_script_includes_back_scroll_and_run_js_actions() {
+        // The built-in Playwright bridge script should support the same browser tool surface.
+        for needle in ["\"Back\"", "\"Scroll\"", "\"RunJs\""] {
+            assert!(
+                super::BROWSER_BRIDGE_SCRIPT.contains(needle),
+                "bridge script missing action handler: {needle}"
+            );
         }
     }
 
@@ -4627,11 +4871,32 @@ mod tests {
             .unwrap();
 
         let out = tools
+            .call("browser_run_js", r#"{ "expression": "1 + 1" }"#)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["result"], 2);
+
+        let out = tools
+            .call("browser_scroll", r#"{ "direction": "down", "amount": 123 }"#)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["scrollY"], 123);
+
+        let out = tools
             .call("browser_press_key", r#"{ "key": "Enter" }"#)
             .await
             .unwrap();
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["key"], "Enter");
+
+        let out = tools
+            .call("browser_wait", r##"{ "selector": "#content", "timeout_ms": 1 }"##)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(v["waited_for"]["selector"], "#content");
 
         let out = tools
             .call(
@@ -4656,6 +4921,13 @@ mod tests {
         assert!(
             bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]),
             "not a PNG"
+        );
+
+        let out = tools.call("browser_back", r#"{}"#).await.unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert!(
+            v.get("url").and_then(|v| v.as_str()).is_some(),
+            "{v}"
         );
 
         let out = tools.call("browser_close", r#"{}"#).await.unwrap();
@@ -4738,6 +5010,9 @@ sys.stdout.write(json.dumps({"success": True, "data": {"status": "ready"}}) + "\
 sys.stdout.flush()
 
 current_url = ""
+history = []
+scroll_x = 0
+scroll_y = 0
 
 for line in sys.stdin:
     line = line.strip()
@@ -4747,7 +5022,25 @@ for line in sys.stdin:
     action = cmd.get("action", "")
     if action == "Navigate":
         current_url = cmd.get("url", "")
+        history.append(current_url)
         resp = {"success": True, "data": {"title": "Stub", "url": current_url, "headless": headless}}
+    elif action == "Back":
+        if len(history) >= 2:
+            history.pop()
+            current_url = history[-1]
+        resp = {"success": True, "data": {"title": "Stub", "url": current_url}}
+    elif action == "Scroll":
+        direction = cmd.get("direction", "down")
+        amount = int(cmd.get("amount") or 0)
+        if direction == "down":
+            scroll_y += amount
+        elif direction == "up":
+            scroll_y -= amount
+        elif direction == "right":
+            scroll_x += amount
+        elif direction == "left":
+            scroll_x -= amount
+        resp = {"success": True, "data": {"scrollX": scroll_x, "scrollY": scroll_y}}
     elif action == "ReadPage":
         resp = {"success": True, "data": {"title": "Stub", "url": current_url, "content": "hello"}}
     elif action == "Screenshot":
@@ -4765,6 +5058,8 @@ for line in sys.stdin:
         if cmd.get("text"):
             waited_for["text"] = cmd.get("text", "")
         resp = {"success": True, "data": {"waited_for": waited_for, "timeout_ms": cmd.get("timeout_ms")}}
+    elif action == "RunJs":
+        resp = {"success": True, "data": {"result": 2, "expression": cmd.get("expression", "")}}
     elif action == "Close":
         resp = {"success": True, "data": {"status": "closed"}}
         sys.stdout.write(json.dumps(resp) + "\n")

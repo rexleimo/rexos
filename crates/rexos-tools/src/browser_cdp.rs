@@ -184,6 +184,39 @@ impl CdpBrowserSession {
         page_info(&self.cdp).await
     }
 
+    pub async fn back(&self) -> anyhow::Result<Value> {
+        let _ = self.cdp.run_js("history.back(); null").await;
+        tokio::time::sleep(Duration::from_millis(250)).await;
+        wait_for_load(&self.cdp).await;
+        page_info(&self.cdp).await
+    }
+
+    pub async fn scroll(&self, direction: &str, amount: i64) -> anyhow::Result<Value> {
+        let (dx, dy) = match direction {
+            "up" => (0, -amount),
+            "down" => (0, amount),
+            "left" => (-amount, 0),
+            "right" => (amount, 0),
+            _ => (0, amount),
+        };
+
+        let js = format!(
+            r#"(() => {{
+  window.scrollBy({dx}, {dy});
+  return {{
+    scrollX: (typeof window.scrollX === 'number' ? window.scrollX : (window.pageXOffset || 0)),
+    scrollY: (typeof window.scrollY === 'number' ? window.scrollY : (window.pageYOffset || 0)),
+  }};
+}})()"#
+        );
+
+        self.cdp.run_js(&js).await.context("scroll js")
+    }
+
+    pub async fn run_js(&self, expression: &str) -> anyhow::Result<Value> {
+        self.cdp.run_js(expression).await.context("run js")
+    }
+
     pub async fn click(&self, selector: &str) -> anyhow::Result<Value> {
         let sel_json = serde_json::to_string(selector).unwrap_or_default();
         let js = format!(
