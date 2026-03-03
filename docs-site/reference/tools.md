@@ -65,6 +65,8 @@ Fetch an HTTP(S) URL and return a small response body.
 
 By default it rejects loopback/private IPs (basic SSRF protection). For local testing you can set `allow_private=true`.
 
+If `truncated=true`, RexOS returns a **head+tail** snippet with the marker `[...] middle omitted [...]` and includes both `bytes` (returned) and `total_bytes` (original).
+
 ## `pdf`
 
 Extract text from a workspace PDF file (best-effort).
@@ -72,6 +74,7 @@ Extract text from a workspace PDF file (best-effort).
 Arguments:
 
 - `path` (required): workspace-relative `.pdf` path
+- `pages` (optional): page selector (1-indexed), e.g. `"1"`, `"1-3"`, `"2,4-6"`
 - `max_pages` (optional): default 10, max 50
 - `max_chars` (optional): default 12000, max 50000
 
@@ -81,6 +84,8 @@ Returns JSON:
 - `text` (possibly truncated)
 - `truncated` (bool)
 - `bytes` (file size)
+- `pages_total`
+- `pages` (the selector string, or null)
 - `pages_extracted`
 
 ## `browser_*` (CDP)
@@ -220,6 +225,13 @@ Start and interact with long-running processes:
 - `process_start` / `process_poll` / `process_write` / `process_kill` / `process_list`
 
 Processes run with the workspace as the working directory and a minimal environment.
+
+`process_poll` returns JSON:
+
+- `stdout` / `stderr` (incremental)
+- `stdout_truncated` / `stderr_truncated` (bool; when true, the output contains a head+tail snippet with `[...] middle omitted [...]`)
+- `exit_code` (null while alive)
+- `alive` (bool)
 
 ## `canvas_present`
 

@@ -33,7 +33,10 @@
     rexos agent run --workspace . --prompt "Use the pdf tool to extract text from samples/dummy.pdf (max_pages=10, max_chars=12000). Then write notes/pdf_summary.md with: (1) a 6-bullet summary, (2) key terms, and (3) any missing/garbled parts you notice. Only use the extracted PDF text; do not invent content."
     ```
 
+## Optional: select pages
+
+If you only need a subset, pass a 1-indexed page selector like `pages="2-3"` (or `pages="2,4-6"`).
+
 ## What to expect
 
 - `notes/pdf_summary.md`
-
