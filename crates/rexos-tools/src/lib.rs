@@ -266,8 +266,13 @@ impl Toolset {
             "pdf" | "pdf_extract" => {
                 let args: PdfArgs =
                     serde_json::from_str(arguments_json).context("parse pdf arguments")?;
-                self.pdf_extract(&args.path, args.max_pages, args.max_chars)
-                    .await
+                self.pdf_extract(
+                    &args.path,
+                    args.pages.as_deref(),
+                    args.max_pages,
+                    args.max_chars,
+                )
+                .await
             }
             "web_search" => {
                 let args: WebSearchArgs =
@@ -1167,6 +1172,7 @@ impl Toolset {
     async fn pdf_extract(
         &self,
         user_path: &str,
+        pages_spec: Option<&str>,
         max_pages: Option<u64>,
         max_chars: Option<u64>,
     ) -> anyhow::Result<String> {
@@ -1190,15 +1196,38 @@ impl Toolset {
         let max_chars = max_chars.unwrap_or(12_000).clamp(1, 50_000) as usize;
 
         let path_for_extract = path.clone();
-        let pages = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+        let page_texts = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
             pdf_extract::extract_text_by_pages(&path_for_extract)
                 .map_err(|e| anyhow::anyhow!("pdf extract failed: {e}"))
         })
         .await
         .context("join pdf extract task")??;
 
-        let pages_extracted = pages.len().min(max_pages);
-        let combined = pages.into_iter().take(max_pages).collect::<Vec<_>>().join("\n\n");
+        let total_pages = page_texts.len();
+        let selected_page_numbers = match pages_spec {
+            Some(spec) => Some(Self::parse_pdf_pages_selector(spec)?),
+            None => None,
+        };
+
+        let selected_pages = if let Some(requested) = selected_page_numbers.as_ref() {
+            let mut out = Vec::with_capacity(requested.len());
+            for &page_no in requested {
+                if page_no == 0 || page_no > total_pages {
+                    bail!("page out of range: {page_no} (valid range: 1..={total_pages})");
+                }
+                out.push(page_texts[page_no - 1].clone());
+            }
+            out
+        } else {
+            page_texts
+        };
+
+        let pages_extracted = selected_pages.len().min(max_pages);
+        let combined = selected_pages
+            .into_iter()
+            .take(max_pages)
+            .collect::<Vec<_>>()
+            .join("\n\n");
 
         let mut iter = combined.chars();
         let text: String = iter.by_ref().take(max_chars).collect();
@@ -1209,9 +1238,51 @@ impl Toolset {
             "text": text,
             "truncated": truncated,
             "bytes": meta.len(),
+            "pages_total": total_pages,
+            "pages": pages_spec,
             "pages_extracted": pages_extracted,
         })
         .to_string())
+    }
+
+    fn parse_pdf_pages_selector(spec: &str) -> anyhow::Result<Vec<usize>> {
+        let spec = spec.trim();
+        if spec.is_empty() {
+            bail!("pages is empty");
+        }
+
+        let mut out = Vec::new();
+        for part in spec.split(',') {
+            let part = part.trim();
+            if part.is_empty() {
+                continue;
+            }
+
+            if let Some((start, end)) = part.split_once('-') {
+                let start: usize = start.trim().parse().context("parse pages range start")?;
+                let end: usize = end.trim().parse().context("parse pages range end")?;
+                if start == 0 || end == 0 {
+                    bail!("pages are 1-indexed (got {part})");
+                }
+                if end < start {
+                    bail!("pages range must be ascending (got {part})");
+                }
+                for n in start..=end {
+                    out.push(n);
+                }
+            } else {
+                let n: usize = part.parse().context("parse page number")?;
+                if n == 0 {
+                    bail!("pages are 1-indexed (got 0)");
+                }
+                out.push(n);
+            }
+        }
+
+        if out.is_empty() {
+            bail!("pages selection is empty");
+        }
+        Ok(out)
     }
 
     fn image_analyze(&self, user_path: &str) -> anyhow::Result<String> {
@@ -2284,6 +2355,8 @@ struct WebFetchArgs {
 #[derive(Debug, serde::Deserialize)]
 struct PdfArgs {
     path: String,
+    #[serde(default)]
+    pages: Option<String>,
     #[serde(default)]
     max_pages: Option<u64>,
     #[serde(default)]
@@ -3808,6 +3881,7 @@ fn pdf_def() -> ToolDefinition {
                 "type": "object",
                 "properties": {
                     "path": { "type": "string", "description": "Workspace-relative PDF path." },
+                    "pages": { "type": "string", "description": "Optional page selector (1-indexed). Examples: \"1\", \"1-3\", \"2,4-6\"." },
                     "max_pages": { "type": "integer", "description": "Max pages to extract (default 10, max 50).", "minimum": 1 },
                     "max_chars": { "type": "integer", "description": "Max characters to return (default 12000, max 50000).", "minimum": 1 }
                 },
@@ -3828,6 +3902,7 @@ fn pdf_extract_def() -> ToolDefinition {
                 "type": "object",
                 "properties": {
                     "path": { "type": "string", "description": "Workspace-relative PDF path." },
+                    "pages": { "type": "string", "description": "Optional page selector (1-indexed). Examples: \"1\", \"1-3\", \"2,4-6\"." },
                     "max_pages": { "type": "integer", "description": "Max pages to extract (default 10, max 50).", "minimum": 1 },
                     "max_chars": { "type": "integer", "description": "Max characters to return (default 12000, max 50000).", "minimum": 1 }
                 },
@@ -4318,6 +4393,31 @@ mod tests {
         let text = v.get("text").and_then(|v| v.as_str()).unwrap_or("");
         assert!(text.contains("Hello RexOS PDF"), "{text}");
         assert_eq!(v.get("path").and_then(|v| v.as_str()), Some("fixture.pdf"));
+    }
+
+    #[tokio::test]
+    async fn pdf_pages_range_selects_requested_pages() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let pdf_b64 = "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUiA0IDAgUiA1IDAgUl0gL0NvdW50IDMgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNiAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgOSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNyAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgOSAwIFIgPj4gPj4gPj4KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgOCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgOSAwIFIgPj4gPj4gPj4KZW5kb2JqCjYgMCBvYmoKPDwgL0xlbmd0aCA0MSA+PgpzdHJlYW0KQlQKL0YxIDI0IFRmCjEwMCA3MDAgVGQKKFBBR0VfT05FKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCjcgMCBvYmoKPDwgL0xlbmd0aCA0MSA+PgpzdHJlYW0KQlQKL0YxIDI0IFRmCjEwMCA3MDAgVGQKKFBBR0VfVFdPKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCjggMCBvYmoKPDwgL0xlbmd0aCA0MyA+PgpzdHJlYW0KQlQKL0YxIDI0IFRmCjEwMCA3MDAgVGQKKFBBR0VfVEhSRUUpIFRqCkVUCmVuZHN0cmVhbQplbmRvYmoKOSAwIG9iago8PCAvVHlwZSAvRm9udCAvU3VidHlwZSAvVHlwZTEgL0Jhc2VGb250IC9IZWx2ZXRpY2EgPj4KZW5kb2JqCnhyZWYKMCAxMAowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTI3IDAwMDAwIG4gCjAwMDAwMDAyNTMgMDAwMDAgbiAKMDAwMDAwMDM3OSAwMDAwMCBuIAowMDAwMDAwNTA1IDAwMDAwIG4gCjAwMDAwMDA1OTUgMDAwMDAgbiAKMDAwMDAwMDY4NSAwMDAwMCBuIAowMDAwMDAwNzc3IDAwMDAwIG4gCnRyYWlsZXIKPDwgL1NpemUgMTAgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjg0NwolJUVPRgo=";
+        let pdf_bytes = base64::engine::general_purpose::STANDARD
+            .decode(pdf_b64)
+            .unwrap();
+        std::fs::write(workspace.join("pages.pdf"), pdf_bytes).unwrap();
+
+        let tools = Toolset::new(workspace).unwrap();
+        let out = tools
+            .call("pdf", r#"{ "path": "pages.pdf", "pages": "2" }"#)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let text = v.get("text").and_then(|v| v.as_str()).unwrap_or("");
+
+        assert!(text.contains("PAGE_TWO"), "{text}");
+        assert!(!text.contains("PAGE_ONE"), "{text}");
+        assert!(!text.contains("PAGE_THREE"), "{text}");
     }
 
     #[tokio::test]
