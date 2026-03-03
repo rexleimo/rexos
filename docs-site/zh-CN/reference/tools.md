@@ -2,6 +2,40 @@
 
 RexOS 对 agent runtime 暴露了一组小而清晰的核心工具集，并提供一层“兼容工具面”（别名 + 预留名称），便于复用遵循常见工具约定的 prompts / manifests。
 
+## 工具索引（60+）
+
+你截图里看到的“目录（Table of contents）”只列出**章节标题**，并不会把每一个工具名都展开。很多工具会按模式归类，比如 `browser_*`、`process_*`、`agent_*` 等。
+
+写 prompt / manifest 需要精确工具名时，用下面这个索引：
+
+### 核心
+
+`fs_read`, `fs_write`, `shell`, `web_fetch`
+
+### 浏览器
+
+`browser_navigate`, `browser_back`, `browser_scroll`, `browser_click`, `browser_type`, `browser_press_key`, `browser_wait`, `browser_wait_for`, `browser_read_page`, `browser_run_js`, `browser_screenshot`, `browser_close`
+
+### 兼容别名
+
+`file_read`, `file_write`, `file_list`, `apply_patch`, `shell_exec`, `web_search`, `memory_store`, `memory_recall`
+
+### 多媒体
+
+`image_analyze`, `image_generate`, `location_get`, `media_describe`, `media_transcribe`, `speech_to_text`, `text_to_speech`
+
+### A2A
+
+`a2a_discover`, `a2a_send`
+
+### 沙盒与进程
+
+`docker_exec`, `process_start`, `process_poll`, `process_write`, `process_kill`, `process_list`, `canvas_present`
+
+### Runtime 协作与调度
+
+`agent_spawn`, `agent_list`, `agent_find`, `agent_send`, `agent_kill`, `hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`, `task_post`, `task_claim`, `task_complete`, `task_list`, `event_publish`, `schedule_create`, `schedule_list`, `schedule_delete`, `cron_create`, `cron_list`, `cron_cancel`, `channel_send`, `knowledge_add_entity`, `knowledge_add_relation`, `knowledge_query`
+
 ## `fs_read`
 
 读取 **相对于 workspace root** 的 UTF-8 文本文件。

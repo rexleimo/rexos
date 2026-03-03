@@ -2,6 +2,40 @@
 
 RexOS exposes a small core toolset, plus a compatibility tool surface (aliases + reserved names) so you can reuse prompts/manifests written for common agent tool conventions.
 
+## Tool Index (60+)
+
+The table of contents on this page lists **section headings**, not every tool name. Many tools are grouped under patterns like `browser_*`, `process_*`, `agent_*`, etc.
+
+Use this index when writing prompts/manifests that need exact tool names:
+
+### Core
+
+`fs_read`, `fs_write`, `shell`, `web_fetch`
+
+### Browser
+
+`browser_navigate`, `browser_back`, `browser_scroll`, `browser_click`, `browser_type`, `browser_press_key`, `browser_wait`, `browser_wait_for`, `browser_read_page`, `browser_run_js`, `browser_screenshot`, `browser_close`
+
+### Compatibility aliases
+
+`file_read`, `file_write`, `file_list`, `apply_patch`, `shell_exec`, `web_search`, `memory_store`, `memory_recall`
+
+### Media
+
+`image_analyze`, `image_generate`, `location_get`, `media_describe`, `media_transcribe`, `speech_to_text`, `text_to_speech`
+
+### A2A
+
+`a2a_discover`, `a2a_send`
+
+### Sandbox & processes
+
+`docker_exec`, `process_start`, `process_poll`, `process_write`, `process_kill`, `process_list`, `canvas_present`
+
+### Runtime collaboration & scheduling
+
+`agent_spawn`, `agent_list`, `agent_find`, `agent_send`, `agent_kill`, `hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`, `task_post`, `task_claim`, `task_complete`, `task_list`, `event_publish`, `schedule_create`, `schedule_list`, `schedule_delete`, `cron_create`, `cron_list`, `cron_cancel`, `channel_send`, `knowledge_add_entity`, `knowledge_add_relation`, `knowledge_query`
+
 ## `fs_read`
 
 Read a UTF-8 text file **relative to the workspace root**.
