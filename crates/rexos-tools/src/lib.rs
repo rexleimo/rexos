@@ -26,6 +26,7 @@ pub struct Toolset {
 
 const PROCESS_MAX_PROCESSES: usize = 5;
 const PROCESS_OUTPUT_MAX_BYTES: usize = 200_000;
+const TOOL_OUTPUT_MIDDLE_OMISSION_MARKER: &str = "\n\n[... middle omitted ...]\n\n";
 
 struct ProcessManager {
     processes: HashMap<String, Arc<tokio::sync::Mutex<ProcessEntry>>>,
@@ -1063,19 +1064,36 @@ impl Toolset {
             .context("read response body")?;
 
         let truncated = bytes.len() > max_bytes;
-        let slice = if truncated {
-            &bytes[..max_bytes]
+        let (body, bytes_returned) = if !truncated {
+            (String::from_utf8_lossy(&bytes).to_string(), bytes.len())
         } else {
-            &bytes
+            let marker = TOOL_OUTPUT_MIDDLE_OMISSION_MARKER.as_bytes();
+            if max_bytes <= marker.len() + 2 {
+                let slice = &bytes[..max_bytes];
+                (String::from_utf8_lossy(slice).to_string(), slice.len())
+            } else {
+                let budget = max_bytes.saturating_sub(marker.len());
+                let tail_budget = (budget / 4).max(1);
+                let head_budget = budget.saturating_sub(tail_budget).max(1);
+
+                let head_slice = &bytes[..head_budget.min(bytes.len())];
+                let tail_slice = &bytes[bytes.len().saturating_sub(tail_budget)..];
+
+                let mut out = Vec::with_capacity(max_bytes);
+                out.extend_from_slice(head_slice);
+                out.extend_from_slice(marker);
+                out.extend_from_slice(tail_slice);
+                (String::from_utf8_lossy(&out).to_string(), out.len())
+            }
         };
-        let body = String::from_utf8_lossy(slice).to_string();
 
         Ok(serde_json::json!({
             "status": status,
             "content_type": content_type,
             "body": body,
             "truncated": truncated,
-            "bytes": slice.len(),
+            "bytes": bytes_returned,
+            "total_bytes": bytes.len(),
         })
         .to_string())
     }
@@ -5077,6 +5095,48 @@ mod tests {
 
         let out = tools.call("browser_close", r#"{}"#).await.unwrap();
         assert_eq!(out.trim(), "ok");
+    }
+
+    #[tokio::test]
+    async fn web_fetch_truncation_preserves_head_and_tail() {
+        async fn handler() -> String {
+            let head = "HEAD_MARKER";
+            let tail = "TAIL_MARKER";
+            let filler = "A".repeat(5000);
+            format!("{head}\n{filler}\n{tail}\n")
+        }
+
+        let app = Router::new().route("/", get(handler));
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        let tmp = tempfile::tempdir().unwrap();
+        let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
+
+        let out = tools
+            .call(
+                "web_fetch",
+                &serde_json::json!({
+                    "url": format!("http://{addr}/"),
+                    "allow_private": true,
+                    "max_bytes": 200,
+                })
+                .to_string(),
+            )
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let body = v.get("body").and_then(|v| v.as_str()).unwrap_or("");
+
+        assert!(body.contains("HEAD_MARKER"), "{body}");
+        assert!(body.contains("TAIL_MARKER"), "{body}");
+        assert_eq!(v.get("truncated").and_then(|v| v.as_bool()), Some(true), "{v}");
+
+        server.abort();
     }
 
     #[tokio::test]
