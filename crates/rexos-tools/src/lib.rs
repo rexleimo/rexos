@@ -88,6 +88,8 @@ impl Toolset {
             fs_write_def(),
             shell_def(),
             web_fetch_def(),
+            pdf_def(),
+            pdf_extract_def(),
             browser_navigate_def(),
             browser_back_def(),
             browser_scroll_def(),
@@ -188,6 +190,12 @@ impl Toolset {
                     args.allow_private,
                 )
                 .await
+            }
+            "pdf" | "pdf_extract" => {
+                let args: PdfArgs =
+                    serde_json::from_str(arguments_json).context("parse pdf arguments")?;
+                self.pdf_extract(&args.path, args.max_pages, args.max_chars)
+                    .await
             }
             "web_search" => {
                 let args: WebSearchArgs =
@@ -1068,6 +1076,56 @@ impl Toolset {
             "body": body,
             "truncated": truncated,
             "bytes": slice.len(),
+        })
+        .to_string())
+    }
+
+    async fn pdf_extract(
+        &self,
+        user_path: &str,
+        max_pages: Option<u64>,
+        max_chars: Option<u64>,
+    ) -> anyhow::Result<String> {
+        let path = self.resolve_workspace_path(user_path)?;
+
+        let meta = std::fs::metadata(&path).with_context(|| format!("stat {}", path.display()))?;
+        if meta.len() > 20 * 1024 * 1024 {
+            bail!("pdf too large: {} bytes", meta.len());
+        }
+
+        let ext_ok = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("pdf"))
+            .unwrap_or(false);
+        if !ext_ok {
+            bail!("expected a .pdf file: {user_path}");
+        }
+
+        let max_pages = max_pages.unwrap_or(10).clamp(1, 50) as usize;
+        let max_chars = max_chars.unwrap_or(12_000).clamp(1, 50_000) as usize;
+
+        let path_for_extract = path.clone();
+        let pages = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
+            pdf_extract::extract_text_by_pages(&path_for_extract)
+                .map_err(|e| anyhow::anyhow!("pdf extract failed: {e}"))
+        })
+        .await
+        .context("join pdf extract task")??;
+
+        let pages_extracted = pages.len().min(max_pages);
+        let combined = pages.into_iter().take(max_pages).collect::<Vec<_>>().join("\n\n");
+
+        let mut iter = combined.chars();
+        let text: String = iter.by_ref().take(max_chars).collect();
+        let truncated = iter.next().is_some();
+
+        Ok(serde_json::json!({
+            "path": user_path,
+            "text": text,
+            "truncated": truncated,
+            "bytes": meta.len(),
+            "pages_extracted": pages_extracted,
         })
         .to_string())
     }
@@ -2137,6 +2195,15 @@ struct WebFetchArgs {
     max_bytes: Option<u64>,
     #[serde(default)]
     allow_private: bool,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct PdfArgs {
+    path: String,
+    #[serde(default)]
+    max_pages: Option<u64>,
+    #[serde(default)]
+    max_chars: Option<u64>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -3647,6 +3714,46 @@ fn web_fetch_def() -> ToolDefinition {
     }
 }
 
+fn pdf_def() -> ToolDefinition {
+    ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "pdf".to_string(),
+            description: "Extract text from a PDF file in the workspace.".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Workspace-relative PDF path." },
+                    "max_pages": { "type": "integer", "description": "Max pages to extract (default 10, max 50).", "minimum": 1 },
+                    "max_chars": { "type": "integer", "description": "Max characters to return (default 12000, max 50000).", "minimum": 1 }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+        },
+    }
+}
+
+fn pdf_extract_def() -> ToolDefinition {
+    ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
+            name: "pdf_extract".to_string(),
+            description: "Alias of `pdf` (extract text from a PDF in the workspace).".to_string(),
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Workspace-relative PDF path." },
+                    "max_pages": { "type": "integer", "description": "Max pages to extract (default 10, max 50).", "minimum": 1 },
+                    "max_chars": { "type": "integer", "description": "Max characters to return (default 12000, max 50000).", "minimum": 1 }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+        },
+    }
+}
+
 fn browser_navigate_def() -> ToolDefinition {
     ToolDefinition {
         kind: "function".to_string(),
@@ -4052,6 +4159,21 @@ mod tests {
     }
 
     #[test]
+    fn tool_definitions_include_pdf() {
+        let tmp = tempfile::tempdir().unwrap();
+        let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
+        let defs = tools
+            .definitions()
+            .into_iter()
+            .map(|d| d.function.name)
+            .collect::<std::collections::BTreeSet<_>>();
+
+        for name in ["pdf", "pdf_extract"] {
+            assert!(defs.contains(name), "missing tool definition: {name}");
+        }
+    }
+
+    #[test]
     fn browser_bridge_script_includes_back_scroll_and_run_js_actions() {
         // The built-in Playwright bridge script should support the same browser tool surface.
         for needle in ["\"Back\"", "\"Scroll\"", "\"RunJs\""] {
@@ -4089,6 +4211,29 @@ mod tests {
         ] {
             assert!(defs.contains(name), "missing tool definition: {name}");
         }
+    }
+
+    #[tokio::test]
+    async fn pdf_extracts_text_from_fixture() {
+        let tmp = tempfile::tempdir().unwrap();
+        let workspace = tmp.path().join("ws");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let pdf_b64 = "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA2MTIgNzkyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCA0OCA+PgpzdHJlYW0KQlQKL0YxIDI0IFRmCjEwMCA3MDAgVGQKKEhlbGxvIFJleE9TIFBERikgVGoKRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8IC9UeXBlIC9Gb250IC9TdWJ0eXBlIC9UeXBlMSAvQmFzZUZvbnQgL0hlbHZldGljYSA+PgplbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAowMDAwMDAwMjQxIDAwMDAwIG4gCjAwMDAwMDAzMzggMDAwMDAgbiAKdHJhaWxlcgo8PCAvU2l6ZSA2IC9Sb290IDEgMCBSID4+CnN0YXJ0eHJlZgo0MDgKJSVFT0YK";
+        let pdf_bytes = base64::engine::general_purpose::STANDARD
+            .decode(pdf_b64)
+            .unwrap();
+        std::fs::write(workspace.join("fixture.pdf"), pdf_bytes).unwrap();
+
+        let tools = Toolset::new(workspace).unwrap();
+        let out = tools
+            .call("pdf", r#"{ "path": "fixture.pdf" }"#)
+            .await
+            .unwrap();
+        let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+        let text = v.get("text").and_then(|v| v.as_str()).unwrap_or("");
+        assert!(text.contains("Hello RexOS PDF"), "{text}");
+        assert_eq!(v.get("path").and_then(|v| v.as_str()), Some("fixture.pdf"));
     }
 
     #[tokio::test]
