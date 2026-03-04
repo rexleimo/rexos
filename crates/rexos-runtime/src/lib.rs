@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context};
 
@@ -19,6 +19,9 @@ const MAX_TOOL_RESULT_CHARS: usize = 15_000;
 const TOOL_AUDIT_KEY: &str = "rexos.audit.tool_calls";
 const TOOL_AUDIT_MAX_RECORDS: usize = 2_000;
 const SESSION_ALLOWED_TOOLS_KEY_PREFIX: &str = "rexos.sessions.allowed_tools.";
+const ACP_EVENTS_KEY: &str = "rexos.acp.events";
+const ACP_EVENTS_MAX_RECORDS: usize = 5_000;
+const ACP_CHECKPOINTS_KEY_PREFIX: &str = "rexos.acp.checkpoints.";
 
 #[derive(Debug)]
 pub struct AgentRuntime {
@@ -37,6 +40,26 @@ pub struct OutboxDrainSummary {
 pub struct OutboxDispatcher {
     memory: MemoryStore,
     http: reqwest::Client,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ApprovalMode {
+    Off,
+    Warn,
+    Enforce,
+}
+
+impl ApprovalMode {
+    fn from_env() -> Self {
+        let raw = std::env::var("REXOS_APPROVAL_MODE")
+            .unwrap_or_else(|_| "off".to_string())
+            .to_lowercase();
+        match raw.as_str() {
+            "warn" => Self::Warn,
+            "enforce" => Self::Enforce,
+            _ => Self::Off,
+        }
+    }
 }
 
 impl OutboxDispatcher {
@@ -81,11 +104,49 @@ impl OutboxDispatcher {
                     msg.status = OutboxStatus::Sent;
                     msg.sent_at = Some(now);
                     summary.sent = summary.sent.saturating_add(1);
+                    if let Some(session_id) = msg.session_id.as_deref() {
+                        let _ = self.upsert_acp_delivery_checkpoint(
+                            session_id,
+                            &msg.channel,
+                            &msg.message_id,
+                        );
+                        let _ = append_acp_event(
+                            &self.memory,
+                            AcpEventRecord {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                session_id: Some(session_id.to_string()),
+                                event_type: "delivery.sent".to_string(),
+                                payload: serde_json::json!({
+                                    "channel": msg.channel.clone(),
+                                    "message_id": msg.message_id.clone(),
+                                    "recipient": msg.recipient.clone(),
+                                }),
+                                created_at: now,
+                            },
+                        );
+                    }
                 }
                 Err(e) => {
                     msg.status = OutboxStatus::Failed;
                     msg.last_error = Some(e.to_string());
                     summary.failed = summary.failed.saturating_add(1);
+                    if let Some(session_id) = msg.session_id.as_deref() {
+                        let _ = append_acp_event(
+                            &self.memory,
+                            AcpEventRecord {
+                                id: uuid::Uuid::new_v4().to_string(),
+                                session_id: Some(session_id.to_string()),
+                                event_type: "delivery.failed".to_string(),
+                                payload: serde_json::json!({
+                                    "channel": msg.channel.clone(),
+                                    "message_id": msg.message_id.clone(),
+                                    "recipient": msg.recipient.clone(),
+                                    "error": msg.last_error.clone(),
+                                }),
+                                created_at: now,
+                            },
+                        );
+                    }
                 }
             }
         }
@@ -112,6 +173,27 @@ impl OutboxDispatcher {
             .kv_set("rexos.outbox.messages", &raw)
             .context("kv_set rexos.outbox.messages")?;
         Ok(())
+    }
+
+    fn upsert_acp_delivery_checkpoint(
+        &self,
+        session_id: &str,
+        channel: &str,
+        cursor: &str,
+    ) -> anyhow::Result<()> {
+        let mut checkpoints = acp_delivery_checkpoints_get(&self.memory, session_id)?;
+        let now = AgentRuntime::now_epoch_seconds();
+        if let Some(existing) = checkpoints.iter_mut().find(|c| c.channel == channel) {
+            existing.cursor = cursor.to_string();
+            existing.updated_at = now;
+        } else {
+            checkpoints.push(AcpDeliveryCheckpointRecord {
+                channel: channel.to_string(),
+                cursor: cursor.to_string(),
+                updated_at: now,
+            });
+        }
+        acp_delivery_checkpoints_set(&self.memory, session_id, &checkpoints)
     }
 
     fn deliver_console(&self, msg: &OutboxMessageRecord) {
@@ -210,6 +292,16 @@ impl AgentRuntime {
         };
         self.memory.append_chat_message(session_id, &user_msg)?;
         messages.push(user_msg);
+        let _ = self.append_acp_event(AcpEventRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            session_id: Some(session_id.to_string()),
+            event_type: "session.started".to_string(),
+            payload: serde_json::json!({
+                "kind": format!("{kind:?}").to_lowercase(),
+                "user_prompt_chars": user_prompt.chars().count(),
+            }),
+            created_at: Self::now_epoch_seconds(),
+        });
 
         let tool_defs = tools.definitions();
         let mut tool_call_counts: HashMap<String, u32> = HashMap::new();
@@ -237,7 +329,20 @@ impl AgentRuntime {
                     .and_then(parse_tool_calls_from_json_content)
                 {
                     Some(calls) => calls,
-                    None => return Ok(assistant.content.unwrap_or_default()),
+                    None => {
+                        let out = assistant.content.unwrap_or_default();
+                        let _ = self.append_acp_event(AcpEventRecord {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            session_id: Some(session_id.to_string()),
+                            event_type: "session.completed".to_string(),
+                            payload: serde_json::json!({
+                                "output_chars": out.chars().count(),
+                                "reason": "assistant_stop",
+                            }),
+                            created_at: Self::now_epoch_seconds(),
+                        });
+                        return Ok(out);
+                    }
                 },
             };
 
@@ -253,6 +358,16 @@ impl AgentRuntime {
                 if let Some(allowed) = allowed_lookup.as_ref() {
                     if !allowed.contains(call.function.name.as_str()) {
                         let err = format!("tool not allowed for this session: {}", call.function.name);
+                        let _ = self.append_acp_event(AcpEventRecord {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            session_id: Some(session_id.to_string()),
+                            event_type: "tool.blocked".to_string(),
+                            payload: serde_json::json!({
+                                "tool": call.function.name.clone(),
+                                "reason": "session_whitelist",
+                            }),
+                            created_at: Self::now_epoch_seconds(),
+                        });
                         let _ = self.append_tool_audit(ToolAuditRecord {
                             session_id: session_id.to_string(),
                             tool_name: call.function.name.clone(),
@@ -268,6 +383,29 @@ impl AgentRuntime {
 
                 let args_json =
                     normalize_tool_arguments(&call.function.name, &call.function.arguments);
+                if let Some(warning) =
+                    self.evaluate_tool_approval(session_id, &call.function.name, &args_json, false)?
+                {
+                    let _ = self.append_acp_event(AcpEventRecord {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: Some(session_id.to_string()),
+                        event_type: "approval.warn".to_string(),
+                        payload: serde_json::json!({
+                            "tool": call.function.name.clone(),
+                            "message": warning,
+                        }),
+                        created_at: Self::now_epoch_seconds(),
+                    });
+                }
+                let _ = self.append_acp_event(AcpEventRecord {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    session_id: Some(session_id.to_string()),
+                    event_type: "tool.started".to_string(),
+                    payload: serde_json::json!({
+                        "tool": call.function.name.clone(),
+                    }),
+                    created_at: Self::now_epoch_seconds(),
+                });
                 let output_result: anyhow::Result<String> = async {
                     let output = match call.function.name.as_str() {
                         "memory_store" => {
@@ -378,7 +516,20 @@ impl AgentRuntime {
                         "channel_send" => {
                             let args: ChannelSendToolArgs = serde_json::from_str(&args_json)
                                 .context("parse channel_send args")?;
-                            self.channel_send(args).context("channel_send")?
+                            self.channel_send(Some(session_id), args)
+                                .context("channel_send")?
+                        }
+                        "workflow_run" => {
+                            let args: WorkflowRunToolArgs = serde_json::from_str(&args_json)
+                                .context("parse workflow_run args")?;
+                            self.workflow_run(
+                                &workspace_root,
+                                session_id,
+                                kind,
+                                args,
+                            )
+                            .await
+                            .context("workflow_run")?
                         }
                         "knowledge_add_entity" => {
                             let args: KnowledgeAddEntityToolArgs = serde_json::from_str(&args_json)
@@ -412,6 +563,16 @@ impl AgentRuntime {
                     Ok(output) => output,
                     Err(e) => {
                         let err_text = e.to_string();
+                        let _ = self.append_acp_event(AcpEventRecord {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            session_id: Some(session_id.to_string()),
+                            event_type: "tool.failed".to_string(),
+                            payload: serde_json::json!({
+                                "tool": call.function.name.clone(),
+                                "error": err_text,
+                            }),
+                            created_at: Self::now_epoch_seconds(),
+                        });
                         let _ = self.append_tool_audit(ToolAuditRecord {
                             session_id: session_id.to_string(),
                             tool_name: call.function.name.clone(),
@@ -435,6 +596,16 @@ impl AgentRuntime {
                     error: None,
                     created_at: Self::now_epoch_seconds(),
                 });
+                let _ = self.append_acp_event(AcpEventRecord {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    session_id: Some(session_id.to_string()),
+                    event_type: "tool.succeeded".to_string(),
+                    payload: serde_json::json!({
+                        "tool": call.function.name.clone(),
+                        "truncated": truncated,
+                    }),
+                    created_at: Self::now_epoch_seconds(),
+                });
 
                 let tool_msg = ChatMessage {
                     role: Role::Tool,
@@ -448,6 +619,15 @@ impl AgentRuntime {
             }
         }
 
+        let _ = self.append_acp_event(AcpEventRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            session_id: Some(session_id.to_string()),
+            event_type: "session.failed".to_string(),
+            payload: serde_json::json!({
+                "reason": "max_iterations_exceeded",
+            }),
+            created_at: Self::now_epoch_seconds(),
+        });
         bail!("max iterations exceeded")
     }
 
@@ -549,6 +729,286 @@ impl AgentRuntime {
             .kv_set(TOOL_AUDIT_KEY, &serialized)
             .context("kv_set tool audit")?;
         Ok(())
+    }
+
+    fn append_acp_event(&self, record: AcpEventRecord) -> anyhow::Result<()> {
+        append_acp_event(&self.memory, record)
+    }
+
+    pub fn list_acp_events(
+        &self,
+        session_id: Option<&str>,
+        limit: usize,
+    ) -> anyhow::Result<Vec<AcpEventRecord>> {
+        let mut events = acp_events_get(&self.memory)?;
+        if let Some(session_id) = session_id {
+            let session_id = session_id.trim();
+            if !session_id.is_empty() {
+                events.retain(|e| e.session_id.as_deref() == Some(session_id));
+            }
+        }
+        let wanted = limit.max(1);
+        if events.len() > wanted {
+            events = events.split_off(events.len() - wanted);
+        }
+        Ok(events)
+    }
+
+    pub fn list_acp_delivery_checkpoints(
+        &self,
+        session_id: &str,
+    ) -> anyhow::Result<Vec<AcpDeliveryCheckpointRecord>> {
+        acp_delivery_checkpoints_get(&self.memory, session_id)
+    }
+
+    fn evaluate_tool_approval(
+        &self,
+        session_id: &str,
+        tool_name: &str,
+        arguments_json: &str,
+        explicit_gate: bool,
+    ) -> anyhow::Result<Option<String>> {
+        let mode = ApprovalMode::from_env();
+        if mode == ApprovalMode::Off {
+            return Ok(None);
+        }
+        if !tool_requires_approval(tool_name, arguments_json, explicit_gate) {
+            return Ok(None);
+        }
+        if tool_approval_is_granted(tool_name) {
+            return Ok(None);
+        }
+
+        let msg = format!(
+            "approval required for dangerous tool `{tool_name}` (set REXOS_APPROVAL_ALLOW={tool_name} or all)"
+        );
+        match mode {
+            ApprovalMode::Warn => Ok(Some(msg)),
+            ApprovalMode::Enforce => {
+                let _ = self.append_acp_event(AcpEventRecord {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    session_id: Some(session_id.to_string()),
+                    event_type: "approval.blocked".to_string(),
+                    payload: serde_json::json!({
+                        "tool": tool_name,
+                        "message": msg,
+                    }),
+                    created_at: Self::now_epoch_seconds(),
+                });
+                bail!("{msg}")
+            }
+            ApprovalMode::Off => Ok(None),
+        }
+    }
+
+    async fn workflow_run(
+        &self,
+        workspace_root: &PathBuf,
+        session_id: &str,
+        _kind: TaskKind,
+        args: WorkflowRunToolArgs,
+    ) -> anyhow::Result<String> {
+        if args.steps.is_empty() {
+            bail!("workflow_run requires at least one step");
+        }
+
+        let workflow_id = args
+            .workflow_id
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+        let now = Self::now_epoch_seconds();
+        let mut state = WorkflowRunStateRecord {
+            workflow_id: workflow_id.clone(),
+            name: args.name.clone(),
+            session_id: session_id.to_string(),
+            status: "running".to_string(),
+            created_at: now,
+            updated_at: now,
+            completed_at: None,
+            steps: args
+                .steps
+                .iter()
+                .enumerate()
+                .map(|(idx, step)| WorkflowStepStateRecord {
+                    index: idx,
+                    name: step.name.clone(),
+                    tool: step.tool.clone(),
+                    arguments: step.arguments.clone(),
+                    status: "pending".to_string(),
+                    output: None,
+                    error: None,
+                    started_at: None,
+                    completed_at: None,
+                })
+                .collect(),
+        };
+        let state_path = workflow_state_path(workspace_root, &workflow_id);
+        self.write_workflow_state(&state_path, &state)?;
+
+        let allowed_tools = self.load_session_allowed_tools(session_id)?;
+        let tools = Toolset::new_with_allowed_tools(workspace_root.clone(), allowed_tools)?;
+        let continue_on_error = args.continue_on_error.unwrap_or(false);
+        let mut failed_steps = 0usize;
+
+        let _ = self.append_acp_event(AcpEventRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            session_id: Some(session_id.to_string()),
+            event_type: "workflow.started".to_string(),
+            payload: serde_json::json!({
+                "workflow_id": workflow_id,
+                "steps": state.steps.len(),
+            }),
+            created_at: Self::now_epoch_seconds(),
+        });
+
+        for (idx, step) in args.steps.iter().enumerate() {
+            let started_at = Self::now_epoch_seconds();
+            {
+                let st = &mut state.steps[idx];
+                st.status = "running".to_string();
+                st.started_at = Some(started_at);
+                st.completed_at = None;
+                st.error = None;
+            }
+            state.updated_at = started_at;
+            self.write_workflow_state(&state_path, &state)?;
+
+            let args_json = if step.arguments.is_null() {
+                "{}".to_string()
+            } else {
+                serde_json::to_string(&step.arguments).context("serialize workflow step arguments")?
+            };
+
+            let step_res: anyhow::Result<String> = async {
+                if is_runtime_managed_tool(&step.tool) {
+                    bail!(
+                        "workflow step tool `{}` is runtime-managed and not supported in workflow_run yet",
+                        step.tool
+                    );
+                }
+
+                if let Some(warning) = self.evaluate_tool_approval(
+                    session_id,
+                    &step.tool,
+                    &args_json,
+                    step.approval_required.unwrap_or(false),
+                )? {
+                    let _ = self.append_acp_event(AcpEventRecord {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: Some(session_id.to_string()),
+                        event_type: "approval.warn".to_string(),
+                        payload: serde_json::json!({
+                            "tool": step.tool,
+                            "message": warning,
+                            "workflow_id": workflow_id,
+                            "step_index": idx,
+                        }),
+                        created_at: Self::now_epoch_seconds(),
+                    });
+                }
+
+                tools
+                    .call(&step.tool, &args_json)
+                    .await
+                    .with_context(|| format!("workflow step {} ({})", idx, step.tool))
+            }
+            .await;
+
+            let completed_at = Self::now_epoch_seconds();
+            let st = &mut state.steps[idx];
+            st.completed_at = Some(completed_at);
+
+            match step_res {
+                Ok(output) => {
+                    let (output, _) = truncate_tool_result_with_flag(output, 4_000);
+                    st.status = "succeeded".to_string();
+                    st.output = Some(output);
+                    st.error = None;
+                    let _ = self.append_acp_event(AcpEventRecord {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: Some(session_id.to_string()),
+                        event_type: "workflow.step_succeeded".to_string(),
+                        payload: serde_json::json!({
+                            "workflow_id": workflow_id,
+                            "step_index": idx,
+                            "tool": step.tool,
+                        }),
+                        created_at: completed_at,
+                    });
+                }
+                Err(e) => {
+                    failed_steps = failed_steps.saturating_add(1);
+                    st.status = "failed".to_string();
+                    st.output = None;
+                    st.error = Some(e.to_string());
+                    state.status = "failed".to_string();
+                    let _ = self.append_acp_event(AcpEventRecord {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        session_id: Some(session_id.to_string()),
+                        event_type: "workflow.step_failed".to_string(),
+                        payload: serde_json::json!({
+                            "workflow_id": workflow_id,
+                            "step_index": idx,
+                            "tool": step.tool,
+                            "error": e.to_string(),
+                        }),
+                        created_at: completed_at,
+                    });
+                    state.updated_at = completed_at;
+                    self.write_workflow_state(&state_path, &state)?;
+                    if !continue_on_error {
+                        break;
+                    }
+                }
+            }
+
+            state.updated_at = completed_at;
+            self.write_workflow_state(&state_path, &state)?;
+        }
+
+        if state.status != "failed" {
+            state.status = "completed".to_string();
+        }
+        state.completed_at = Some(Self::now_epoch_seconds());
+        state.updated_at = state.completed_at.unwrap_or(state.updated_at);
+        self.write_workflow_state(&state_path, &state)?;
+
+        let _ = self.append_acp_event(AcpEventRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            session_id: Some(session_id.to_string()),
+            event_type: if state.status == "completed" {
+                "workflow.completed".to_string()
+            } else {
+                "workflow.failed".to_string()
+            },
+            payload: serde_json::json!({
+                "workflow_id": workflow_id,
+                "status": state.status,
+                "failed_steps": failed_steps,
+            }),
+            created_at: Self::now_epoch_seconds(),
+        });
+
+        Ok(serde_json::json!({
+            "workflow_id": state.workflow_id,
+            "name": state.name,
+            "status": state.status,
+            "failed_steps": failed_steps,
+            "saved_to": state_path.display().to_string(),
+        })
+        .to_string())
+    }
+
+    fn write_workflow_state(
+        &self,
+        path: &std::path::Path,
+        state: &WorkflowRunStateRecord,
+    ) -> anyhow::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("create workflow dir {}", parent.display()))?;
+        }
+        let raw = serde_json::to_string_pretty(state).context("serialize workflow state")?;
+        std::fs::write(path, raw).with_context(|| format!("write workflow state {}", path.display()))
     }
 
     fn agents_index(&self) -> anyhow::Result<Vec<String>> {
@@ -1244,7 +1704,7 @@ impl AgentRuntime {
         Ok(())
     }
 
-    fn channel_send(&self, args: ChannelSendToolArgs) -> anyhow::Result<String> {
+    fn channel_send(&self, session_id: Option<&str>, args: ChannelSendToolArgs) -> anyhow::Result<String> {
         if args.channel.trim().is_empty() {
             return Ok("error: channel is empty".to_string());
         }
@@ -1263,6 +1723,7 @@ impl AgentRuntime {
         let now = Self::now_epoch_seconds();
         let record = OutboxMessageRecord {
             message_id: uuid::Uuid::new_v4().to_string(),
+            session_id: session_id.map(|s| s.to_string()),
             channel: args.channel,
             recipient: args.recipient,
             subject: args.subject.filter(|s| !s.trim().is_empty()),
@@ -1668,6 +2129,8 @@ enum OutboxStatus {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct OutboxMessageRecord {
     message_id: String,
+    #[serde(default)]
+    session_id: Option<String>,
     channel: String,
     recipient: String,
     #[serde(default)]
@@ -1702,6 +2165,77 @@ struct ChannelSendToolArgs {
     #[serde(default)]
     subject: Option<String>,
     message: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct WorkflowRunToolArgs {
+    #[serde(default)]
+    workflow_id: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    steps: Vec<WorkflowStepToolArgs>,
+    #[serde(default)]
+    continue_on_error: Option<bool>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct WorkflowStepToolArgs {
+    tool: String,
+    #[serde(default)]
+    arguments: serde_json::Value,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    approval_required: Option<bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct WorkflowRunStateRecord {
+    workflow_id: String,
+    #[serde(default)]
+    name: Option<String>,
+    session_id: String,
+    status: String,
+    created_at: i64,
+    updated_at: i64,
+    #[serde(default)]
+    completed_at: Option<i64>,
+    steps: Vec<WorkflowStepStateRecord>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct WorkflowStepStateRecord {
+    index: usize,
+    #[serde(default)]
+    name: Option<String>,
+    tool: String,
+    arguments: serde_json::Value,
+    status: String,
+    #[serde(default)]
+    output: Option<String>,
+    #[serde(default)]
+    error: Option<String>,
+    #[serde(default)]
+    started_at: Option<i64>,
+    #[serde(default)]
+    completed_at: Option<i64>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AcpEventRecord {
+    pub id: String,
+    #[serde(default)]
+    pub session_id: Option<String>,
+    pub event_type: String,
+    pub payload: serde_json::Value,
+    pub created_at: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AcpDeliveryCheckpointRecord {
+    pub channel: String,
+    pub cursor: String,
+    pub updated_at: i64,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -1934,4 +2468,128 @@ fn find_balanced_json_object_end(s: &str, start: usize) -> Option<usize> {
     }
 
     None
+}
+
+fn workflow_state_path(workspace_root: &Path, workflow_id: &str) -> PathBuf {
+    workspace_root
+        .join(".rexos")
+        .join("workflows")
+        .join(format!("{workflow_id}.json"))
+}
+
+fn is_runtime_managed_tool(name: &str) -> bool {
+    matches!(
+        name,
+        "memory_store"
+            | "memory_recall"
+            | "agent_send"
+            | "agent_spawn"
+            | "agent_list"
+            | "agent_kill"
+            | "agent_find"
+            | "hand_list"
+            | "hand_activate"
+            | "hand_status"
+            | "hand_deactivate"
+            | "task_post"
+            | "task_claim"
+            | "task_complete"
+            | "task_list"
+            | "event_publish"
+            | "schedule_create"
+            | "schedule_list"
+            | "schedule_delete"
+            | "knowledge_add_entity"
+            | "knowledge_add_relation"
+            | "knowledge_query"
+            | "cron_create"
+            | "cron_list"
+            | "cron_cancel"
+            | "channel_send"
+            | "workflow_run"
+    )
+}
+
+fn tool_requires_approval(name: &str, arguments_json: &str, explicit_gate: bool) -> bool {
+    if explicit_gate {
+        return true;
+    }
+
+    match name {
+        "shell" | "docker_exec" | "process_start" => true,
+        "web_fetch" | "browser_navigate" => json_bool_field(arguments_json, "allow_private"),
+        _ => false,
+    }
+}
+
+fn json_bool_field(arguments_json: &str, field: &str) -> bool {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(arguments_json) else {
+        return false;
+    };
+    v.get(field).and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+fn tool_approval_is_granted(tool_name: &str) -> bool {
+    let raw = std::env::var("REXOS_APPROVAL_ALLOW").unwrap_or_default();
+    let items: HashSet<String> = raw
+        .split(',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect();
+    if items.contains("all") {
+        return true;
+    }
+    items.contains(&tool_name.to_lowercase())
+}
+
+fn acp_checkpoints_key(session_id: &str) -> String {
+    format!("{ACP_CHECKPOINTS_KEY_PREFIX}{session_id}")
+}
+
+fn acp_events_get(memory: &MemoryStore) -> anyhow::Result<Vec<AcpEventRecord>> {
+    let raw = memory
+        .kv_get(ACP_EVENTS_KEY)
+        .context("kv_get acp events")?
+        .unwrap_or_else(|| "[]".to_string());
+    Ok(serde_json::from_str(&raw).unwrap_or_default())
+}
+
+fn acp_events_set(memory: &MemoryStore, events: &[AcpEventRecord]) -> anyhow::Result<()> {
+    let raw = serde_json::to_string(events).context("serialize acp events")?;
+    memory
+        .kv_set(ACP_EVENTS_KEY, &raw)
+        .context("kv_set acp events")?;
+    Ok(())
+}
+
+fn append_acp_event(memory: &MemoryStore, record: AcpEventRecord) -> anyhow::Result<()> {
+    let mut events = acp_events_get(memory)?;
+    events.push(record);
+    if events.len() > ACP_EVENTS_MAX_RECORDS {
+        events.drain(0..(events.len() - ACP_EVENTS_MAX_RECORDS));
+    }
+    acp_events_set(memory, &events)
+}
+
+fn acp_delivery_checkpoints_get(
+    memory: &MemoryStore,
+    session_id: &str,
+) -> anyhow::Result<Vec<AcpDeliveryCheckpointRecord>> {
+    let raw = memory
+        .kv_get(&acp_checkpoints_key(session_id))
+        .context("kv_get acp delivery checkpoints")?
+        .unwrap_or_else(|| "[]".to_string());
+    Ok(serde_json::from_str(&raw).unwrap_or_default())
+}
+
+fn acp_delivery_checkpoints_set(
+    memory: &MemoryStore,
+    session_id: &str,
+    checkpoints: &[AcpDeliveryCheckpointRecord],
+) -> anyhow::Result<()> {
+    let raw = serde_json::to_string(checkpoints).context("serialize acp delivery checkpoints")?;
+    memory
+        .kv_set(&acp_checkpoints_key(session_id), &raw)
+        .context("kv_set acp delivery checkpoints")?;
+    Ok(())
 }

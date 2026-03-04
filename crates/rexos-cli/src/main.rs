@@ -63,6 +63,11 @@ enum Command {
         #[command(subcommand)]
         command: ChannelCommand,
     },
+    /// ACP event/checkpoint inspection helpers
+    Acp {
+        #[command(subcommand)]
+        command: AcpCommand,
+    },
     /// Config helpers
     Config {
         #[command(subcommand)]
@@ -163,6 +168,31 @@ enum ChannelCommand {
         /// Max messages to attempt per drain cycle
         #[arg(long, default_value_t = 50)]
         limit: usize,
+    },
+}
+
+#[derive(Debug, clap::Subcommand)]
+enum AcpCommand {
+    /// List recent ACP events
+    Events {
+        /// Optional session id filter
+        #[arg(long)]
+        session: Option<String>,
+        /// Max events to print
+        #[arg(long, default_value_t = 100)]
+        limit: usize,
+        /// Print JSON output (machine-readable)
+        #[arg(long)]
+        json: bool,
+    },
+    /// Show ACP delivery checkpoints for one session
+    Checkpoints {
+        /// Session id
+        #[arg(long)]
+        session: String,
+        /// Print JSON output (machine-readable)
+        #[arg(long)]
+        json: bool,
     },
 }
 
@@ -314,6 +344,56 @@ async fn main() -> anyhow::Result<()> {
                     let summary = dispatcher.drain_once(limit).await?;
                     println!("drain: sent={} failed={}", summary.sent, summary.failed);
                     tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
+                }
+            }
+        },
+        Command::Acp { command } => match command {
+            AcpCommand::Events {
+                session,
+                limit,
+                json,
+            } => {
+                let paths = RexosPaths::discover()?;
+                paths.ensure_dirs()?;
+                RexosConfig::ensure_default(&paths)?;
+                let memory = MemoryStore::open_or_create(&paths)?;
+
+                let events = load_acp_events(&memory, session.as_deref(), limit)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&events)?);
+                } else {
+                    for ev in events {
+                        let session = ev
+                            .get("session_id")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("-");
+                        let event_type = ev
+                            .get("event_type")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("unknown");
+                        let created_at = ev.get("created_at").and_then(|v| v.as_i64()).unwrap_or(0);
+                        println!("[{created_at}] session={session} type={event_type}");
+                    }
+                }
+            }
+            AcpCommand::Checkpoints { session, json } => {
+                let paths = RexosPaths::discover()?;
+                paths.ensure_dirs()?;
+                RexosConfig::ensure_default(&paths)?;
+                let memory = MemoryStore::open_or_create(&paths)?;
+
+                let checkpoints = load_acp_checkpoints(&memory, &session)?;
+                if json {
+                    println!("{}", serde_json::to_string_pretty(&checkpoints)?);
+                } else if checkpoints.is_empty() {
+                    println!("no checkpoints for session {}", session);
+                } else {
+                    for cp in checkpoints {
+                        let channel = cp.get("channel").and_then(|v| v.as_str()).unwrap_or("-");
+                        let cursor = cp.get("cursor").and_then(|v| v.as_str()).unwrap_or("-");
+                        let updated_at = cp.get("updated_at").and_then(|v| v.as_i64()).unwrap_or(0);
+                        println!("[{updated_at}] channel={channel} cursor={cursor}");
+                    }
                 }
             }
         },
@@ -670,6 +750,48 @@ fn format_release_check_report(report: &ReleaseCheckReport) -> String {
     out
 }
 
+fn load_acp_events(
+    memory: &MemoryStore,
+    session: Option<&str>,
+    limit: usize,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    let raw = memory
+        .kv_get("rexos.acp.events")
+        .context("kv_get rexos.acp.events")?
+        .unwrap_or_else(|| "[]".to_string());
+    let mut events: Vec<serde_json::Value> = serde_json::from_str(&raw).unwrap_or_default();
+
+    if let Some(session) = session {
+        let session = session.trim();
+        if !session.is_empty() {
+            events.retain(|ev| ev.get("session_id").and_then(|v| v.as_str()) == Some(session));
+        }
+    }
+
+    let wanted = limit.max(1);
+    if events.len() > wanted {
+        events = events.split_off(events.len() - wanted);
+    }
+    Ok(events)
+}
+
+fn load_acp_checkpoints(
+    memory: &MemoryStore,
+    session: &str,
+) -> anyhow::Result<Vec<serde_json::Value>> {
+    let session = session.trim();
+    if session.is_empty() {
+        anyhow::bail!("session is empty");
+    }
+    let key = format!("rexos.acp.checkpoints.{session}");
+    let raw = memory
+        .kv_get(&key)
+        .with_context(|| format!("kv_get {key}"))?
+        .unwrap_or_else(|| "[]".to_string());
+    let checkpoints: Vec<serde_json::Value> = serde_json::from_str(&raw).unwrap_or_default();
+    Ok(checkpoints)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -690,6 +812,38 @@ mod tests {
         assert!(
             parsed.is_ok(),
             "expected `rexos release check` to parse, got: {parsed:?}"
+        );
+    }
+
+    #[test]
+    fn cli_parses_acp_events_subcommand() {
+        let parsed = Cli::try_parse_from([
+            "rexos",
+            "acp",
+            "events",
+            "--session",
+            "s-1",
+            "--limit",
+            "20",
+        ]);
+        assert!(
+            parsed.is_ok(),
+            "expected `rexos acp events` to parse, got: {parsed:?}"
+        );
+    }
+
+    #[test]
+    fn cli_parses_acp_checkpoints_subcommand() {
+        let parsed = Cli::try_parse_from([
+            "rexos",
+            "acp",
+            "checkpoints",
+            "--session",
+            "s-1",
+        ]);
+        assert!(
+            parsed.is_ok(),
+            "expected `rexos acp checkpoints` to parse, got: {parsed:?}"
         );
     }
 

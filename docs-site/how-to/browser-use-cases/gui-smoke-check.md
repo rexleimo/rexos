@@ -30,7 +30,7 @@ If you don’t want to install Chrome/Chromium locally, run a sandboxed GUI Chro
 1) Start the sandbox container (from the RexOS repo root):
 
 ```bash
-docker compose -f docker/sandbox-browser/compose.yml up --build
+scripts/browser_sandbox_up.sh up --build
 ```
 
 2) Open the noVNC observer UI:

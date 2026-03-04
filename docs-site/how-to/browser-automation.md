@@ -27,7 +27,13 @@ By default, RexOS only allows **loopback** CDP endpoints. To attach to a non-loo
 export REXOS_BROWSER_CDP_ALLOW_REMOTE=1
 ```
 
-For a copy/paste Docker GUI sandbox (Chromium + noVNC) that exposes CDP on `127.0.0.1:9222`, see: [GUI Smoke Check](browser-use-cases/gui-smoke-check.md).
+For a copy/paste Docker GUI sandbox (Chromium + noVNC) that exposes CDP on `127.0.0.1:9222`, run:
+
+```bash
+scripts/browser_sandbox_up.sh up --build
+```
+
+Then follow: [GUI Smoke Check](browser-use-cases/gui-smoke-check.md).
 
 ## Headless vs GUI
 

@@ -34,7 +34,7 @@ Use this index when writing prompts/manifests that need exact tool names:
 
 ### Runtime collaboration & scheduling
 
-`agent_spawn`, `agent_list`, `agent_find`, `agent_send`, `agent_kill`, `hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`, `task_post`, `task_claim`, `task_complete`, `task_list`, `event_publish`, `schedule_create`, `schedule_list`, `schedule_delete`, `cron_create`, `cron_list`, `cron_cancel`, `channel_send`, `knowledge_add_entity`, `knowledge_add_relation`, `knowledge_query`
+`agent_spawn`, `agent_list`, `agent_find`, `agent_send`, `agent_kill`, `hand_list`, `hand_activate`, `hand_status`, `hand_deactivate`, `task_post`, `task_claim`, `task_complete`, `task_list`, `event_publish`, `schedule_create`, `schedule_list`, `schedule_delete`, `cron_create`, `cron_list`, `cron_cancel`, `channel_send`, `workflow_run`, `knowledge_add_entity`, `knowledge_add_relation`, `knowledge_query`
 
 ## Running these examples
 
@@ -962,6 +962,45 @@ Prompt:
 
 ```text
 Use channel_send to enqueue a console message (recipient=stdout) saying \"Hello from RexOS\". Then tell me to run `rexos channel drain` to deliver it.
+```
+
+## `workflow_run`
+
+Run a multi-step workflow and persist execution state to `.rexos/workflows/<workflow_id>.json`.
+
+Arguments (tool call JSON):
+
+- `workflow_id` (optional): stable id for repeatable runs.
+- `name` (optional): human-readable workflow name.
+- `steps` (required): array of step objects.
+  - `tool` (required)
+  - `arguments` (optional object; defaults to `{}`)
+  - `name` (optional)
+  - `approval_required` (optional boolean): force approval gate when approval mode is enabled.
+- `continue_on_error` (optional): continue after failed steps.
+
+### Example
+
+Tool call:
+
+```json
+{
+  "workflow_id": "wf_demo",
+  "name": "write-note",
+  "steps": [
+    {
+      "name": "write",
+      "tool": "fs_write",
+      "arguments": { "path": "notes/workflow.txt", "content": "hello" }
+    }
+  ]
+}
+```
+
+Prompt:
+
+```text
+Use workflow_run to execute one step that writes notes/workflow.txt with \"hello\", then report workflow status.
 ```
 
 ## `hand_*`

@@ -463,7 +463,8 @@ impl Toolset {
             | "cron_create"
             | "cron_list"
             | "cron_cancel"
-            | "channel_send" => {
+            | "channel_send"
+            | "workflow_run" => {
                 bail!("tool '{name}' is implemented in the runtime, not Toolset")
             }
             _ => bail!("unknown tool: {name}"),
@@ -3586,6 +3587,40 @@ fn compat_tool_defs() -> Vec<ToolDefinition> {
     defs.push(ToolDefinition {
         kind: "function".to_string(),
         function: ToolFunctionDefinition {
+            name: "workflow_run".to_string(),
+            description:
+                "Run a persisted multi-step workflow and save execution state under .rexos/workflows/."
+                    .to_string(),
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "workflow_id": { "type": "string", "description": "Optional stable workflow id. If omitted, RexOS generates one." },
+                    "name": { "type": "string", "description": "Optional workflow display name." },
+                    "continue_on_error": { "type": "boolean", "description": "Whether to continue executing remaining steps after a failed step (default false)." },
+                    "steps": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": { "type": "string", "description": "Optional step name." },
+                                "tool": { "type": "string", "description": "Tool name to execute." },
+                                "arguments": { "type": "object", "description": "Tool arguments JSON object." },
+                                "approval_required": { "type": "boolean", "description": "Force approval gate for this step when approval mode is enabled." }
+                            },
+                            "required": ["tool"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": ["steps"],
+                "additionalProperties": false
+            }),
+        },
+    });
+
+    defs.push(ToolDefinition {
+        kind: "function".to_string(),
+        function: ToolFunctionDefinition {
             name: "hand_list".to_string(),
             description:
                 "List available Hands (curated autonomous packages) and their activation status."
@@ -4633,6 +4668,15 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
         let err = tools.call("hand_list", r#"{}"#).await.unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("runtime"), "{msg}");
+    }
+
+    #[tokio::test]
+    async fn workflow_run_is_reported_as_runtime_implemented() {
+        let tmp = tempfile::tempdir().unwrap();
+        let tools = Toolset::new(tmp.path().to_path_buf()).unwrap();
+        let err = tools.call("workflow_run", r#"{ "steps": [] }"#).await.unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("runtime"), "{msg}");
     }
