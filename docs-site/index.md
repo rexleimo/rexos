@@ -6,9 +6,11 @@
 
 [Get started (Ollama)](tutorials/quickstart-ollama.md){ .md-button .md-button--primary }
 [Harness tutorial](tutorials/harness-long-task.md){ .md-button }
+[Beginner FAQ](how-to/faq.md){ .md-button }
 [Providers & routing](how-to/providers.md){ .md-button }
 [Use cases](how-to/use-cases.md){ .md-button }
 [Case tasks](examples/case-tasks/index.md){ .md-button }
+[Growth blog](blog/index.md){ .md-button }
 [Browser use cases](how-to/browser-use-cases.md){ .md-button }
 
 <p class="rexos-muted">
@@ -86,4 +88,7 @@ flowchart LR
 
 - Learn the harness loop: `tutorials/harness-long-task.md`
 - Explore common recipes: `how-to/use-cases.md`
+- Start from beginner Q&A: `how-to/faq.md`
+- Copy/paste 10 practical tasks: `examples/case-tasks/ten-copy-paste-tasks.md`
+- Read the positioning article: `blog/rexos-vs-openfang-openclaw.md`
 - Switch providers (GLM/MiniMax native + NVIDIA NIM included): `how-to/providers.md`

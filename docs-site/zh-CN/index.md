@@ -8,9 +8,11 @@
 
 [快速开始（Ollama）](tutorials/quickstart-ollama.md){ .md-button .md-button--primary }
 [Harness 长任务](tutorials/harness-long-task.md){ .md-button }
+[新手 FAQ](how-to/faq.md){ .md-button }
 [Providers 与路由](how-to/providers.md){ .md-button }
 [常见场景](how-to/use-cases.md){ .md-button }
 [案例任务](examples/case-tasks/index.md){ .md-button }
+[增长博客](blog/index.md){ .md-button }
 [浏览器案例](how-to/browser-use-cases.md){ .md-button }
 
 <p class="rexos-muted">
@@ -88,4 +90,7 @@ flowchart LR
 
 - Harness 长任务教程：`tutorials/harness-long-task.md`
 - 常见场景与配方：`how-to/use-cases.md`
+- 先看新手问题排查：`how-to/faq.md`
+- 直接复制 10 个任务模板：`examples/case-tasks/ten-copy-paste-tasks.md`
+- 看产品定位对比：`blog/rexos-vs-openfang-openclaw.md`
 - Provider 切换与原生 API（含 NVIDIA NIM）：`how-to/providers.md`

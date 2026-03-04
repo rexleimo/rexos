@@ -70,11 +70,13 @@ plugins:
             Install & Update: 安装与更新
             Quickstart (Ollama): 快速开始（Ollama）
             New User Walkthrough: 新人复习
+            Beginner FAQ: 新手 FAQ
             Workflows: 工作流
             Long Task With Harness: Harness 长任务
             Examples: 案例代码
             Common Use Cases: 常见场景
             Case Tasks: 案例任务
+            10 Copy/Paste Tasks: 10 个可复制任务
             Index: 目录
             Setup Sanity Check: 环境自检
             Harness Recipes: Harness 配方
@@ -104,6 +106,8 @@ plugins:
             Reference: 参考
             Config: 配置
             Tools: 工具
+            Blog: 博客
+            RexOS vs OpenFang/OpenClaw: RexOS 与 OpenFang/OpenClaw
   - search:
       lang:
         - en
@@ -152,6 +156,7 @@ nav:
           - Install & Update: how-to/install.md
           - Quickstart (Ollama): tutorials/quickstart-ollama.md
           - New User Walkthrough: tutorials/new-user-walkthrough.md
+          - Beginner FAQ: how-to/faq.md
       - Workflows:
           - Long Task With Harness: tutorials/harness-long-task.md
           - Browser Automation: how-to/browser-automation.md
@@ -179,12 +184,16 @@ nav:
           - Web Research Memo: examples/case-tasks/web-research-memo.md
           - Browser Evidence Capture: examples/case-tasks/browser-evidence.md
           - PDF Summary: examples/case-tasks/pdf-summarize.md
+          - 10 Copy/Paste Tasks: examples/case-tasks/ten-copy-paste-tasks.md
       - Browser Use Cases:
           - Index: how-to/browser-use-cases.md
           - GUI Smoke Check: how-to/browser-use-cases/gui-smoke-check.md
           - Baidu Weather (Ollama): how-to/browser-use-cases/baidu-weather.md
           - Wikipedia Summary: how-to/browser-use-cases/wikipedia-summary.md
           - Smoke Test (Source): how-to/browser-use-cases/smoke-test.md
+  - Blog:
+      - Index: blog/index.md
+      - RexOS vs OpenFang/OpenClaw: blog/rexos-vs-openfang-openclaw.md
   - Reference:
       - CLI: reference/cli.md
       - Config: reference/config.md

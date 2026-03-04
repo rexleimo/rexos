@@ -20,6 +20,10 @@
   用 `pdf` 提取 PDF 文本并生成简短总结。  
   [打开](pdf-summarize.md)
 
+- :material-rocket-launch: **10 个可复制任务**  
+  一套可直接运行的模板，覆盖上手、编码、评审、文档和发布准备。  
+  [打开](ten-copy-paste-tasks.md)
+
 </div>
 
 !!! tip "第一次使用 RexOS？"

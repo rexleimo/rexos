@@ -20,6 +20,10 @@ Pick a scenario and run it locally. Each page is designed to be **copy‑paste f
   Extract PDF text with `pdf` and write a concise summary.  
   [Open](pdf-summarize.md)
 
+- :material-rocket-launch: **10 copy/paste tasks**  
+  A ready-to-run set for onboarding, coding, review, docs, and release prep.  
+  [Open](ten-copy-paste-tasks.md)
+
 </div>
 
 !!! tip "New to RexOS?"
