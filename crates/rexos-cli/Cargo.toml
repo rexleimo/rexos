@@ -6,6 +6,10 @@ license.workspace = true
 rust-version.workspace = true
 
 [[bin]]
+name = "loopforge"
+path = "src/main.rs"
+
+[[bin]]
 name = "rexos"
 path = "src/main.rs"
 

@@ -35,7 +35,7 @@ struct ReleaseCheckReport {
 
 #[derive(Debug, Parser)]
 #[command(name = "loopforge")]
-#[command(about = "RexOS: long-running agent operating system", long_about = None)]
+#[command(about = "LoopForge: long-running agent operating system", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -97,7 +97,7 @@ enum Command {
         #[command(subcommand)]
         command: HarnessCommand,
     },
-    /// Run RexOS daemon (HTTP API)
+    /// Run LoopForge daemon (HTTP API)
     Daemon {
         #[command(subcommand)]
         command: DaemonCommand,
@@ -357,7 +357,7 @@ async fn main() -> anyhow::Result<()> {
                 )
                 .await?;
             println!("{out}");
-            eprintln!("[rexos] session_id={session_id}");
+            eprintln!("[loopforge] session_id={session_id}");
             println!("onboard done (first agent run completed)");
         }
         Command::Doctor {
@@ -419,7 +419,7 @@ async fn main() -> anyhow::Result<()> {
                     )
                     .await?;
                 println!("{out}");
-                eprintln!("[rexos] session_id={session_id}");
+                eprintln!("[loopforge] session_id={session_id}");
             }
         },
         Command::Channel { command } => match command {
@@ -565,7 +565,7 @@ async fn main() -> anyhow::Result<()> {
                 rexos::harness::bootstrap_with_prompt(&agent, &dir, &session_id, &prompt).await?;
 
                 println!("Harness bootstrapped in {}", dir.display());
-                eprintln!("[rexos] session_id={session_id}");
+                eprintln!("[loopforge] session_id={session_id}");
             }
             HarnessCommand::Run {
                 dir,
@@ -599,7 +599,7 @@ async fn main() -> anyhow::Result<()> {
                     rexos::harness::run_harness(&agent, &dir, &session_id, &prompt, max_attempts)
                         .await?;
                 println!("{out}");
-                eprintln!("[rexos] session_id={session_id}");
+                eprintln!("[loopforge] session_id={session_id}");
             }
         },
         Command::Daemon { command } => match command {

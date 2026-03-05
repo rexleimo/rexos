@@ -111,7 +111,7 @@ pub async fn run_doctor(opts: DoctorOptions) -> anyhow::Result<DoctorReport> {
             if config_path.exists() {
                 ""
             } else {
-                " (missing; run `rexos init`)"
+                " (missing; run `loopforge init` or `rexos init`)"
             }
         ),
     });
@@ -129,7 +129,7 @@ pub async fn run_doctor(opts: DoctorOptions) -> anyhow::Result<DoctorReport> {
             if db_path.exists() {
                 ""
             } else {
-                " (missing; run `rexos init`)"
+                " (missing; run `loopforge init` or `rexos init`)"
             }
         ),
     });
