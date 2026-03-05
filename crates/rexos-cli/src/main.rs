@@ -1,8 +1,11 @@
 use anyhow::Context;
 use clap::Parser;
+use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command as ProcessCommand;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use rexos::{
     config::{ProviderKind, RexosConfig},
@@ -31,6 +34,27 @@ struct ReleaseCheckReport {
     ok: bool,
     tag: String,
     checks: Vec<ReleaseCheckItem>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default)]
+struct OnboardMetrics {
+    attempted_first_task: u64,
+    first_task_success: u64,
+    first_task_failed: u64,
+    failure_by_category: BTreeMap<String, u64>,
+    updated_at_ms: i64,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct OnboardEvent {
+    ts_ms: i64,
+    workspace: String,
+    session_id: String,
+    outcome: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure_category: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
 }
 
 #[derive(Debug, Parser)]
@@ -380,6 +404,34 @@ async fn main() -> anyhow::Result<()> {
             {
                 Ok(out) => out,
                 Err(e) => {
+                    let err_msg = e.to_string();
+                    let failure_category = classify_onboard_failure(&err_msg);
+                    match record_onboard_attempt(
+                        &paths,
+                        &workspace,
+                        &session_id,
+                        false,
+                        Some(&failure_category),
+                        Some(&err_msg),
+                    ) {
+                        Ok(metrics) => {
+                            eprintln!(
+                                "onboard metrics: success_rate={}/{}",
+                                metrics.first_task_success, metrics.attempted_first_task
+                            );
+                            eprintln!(
+                                "onboard metrics path: {}",
+                                paths.base_dir.join("onboard-metrics.json").display()
+                            );
+                            eprintln!(
+                                "onboard events path: {}",
+                                paths.base_dir.join("onboard-events.jsonl").display()
+                            );
+                        }
+                        Err(log_err) => {
+                            eprintln!("onboard: failed to persist metrics: {log_err}");
+                        }
+                    }
                     eprintln!("onboard: first agent run failed: {e}");
                     eprintln!(
                         "hint: run `ollama list` and set [providers.ollama].default_model in ~/.rexos/config.toml to an available chat model"
@@ -389,6 +441,17 @@ async fn main() -> anyhow::Result<()> {
             };
             println!("{out}");
             eprintln!("[loopforge] session_id={session_id}");
+            match record_onboard_attempt(&paths, &workspace, &session_id, true, None, None) {
+                Ok(metrics) => {
+                    println!(
+                        "onboard metrics: success_rate={}/{}",
+                        metrics.first_task_success, metrics.attempted_first_task
+                    );
+                }
+                Err(log_err) => {
+                    eprintln!("onboard: failed to persist metrics: {log_err}");
+                }
+            }
             println!("onboard done (first agent run completed)");
         }
         Command::Doctor {
@@ -739,6 +802,117 @@ fn is_onboard_blocking_doctor_error(check: &doctor::DoctorCheck) -> bool {
         return false;
     }
     check.id == "config.parse" || check.id.starts_with("router.")
+}
+
+fn onboard_metrics_path(paths: &RexosPaths) -> PathBuf {
+    paths.base_dir.join("onboard-metrics.json")
+}
+
+fn onboard_events_path(paths: &RexosPaths) -> PathBuf {
+    paths.base_dir.join("onboard-events.jsonl")
+}
+
+fn now_ms() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn classify_onboard_failure(err_msg: &str) -> String {
+    let lower = err_msg.to_ascii_lowercase();
+
+    let looks_like_model =
+        lower.contains("model") && (lower.contains("not found") || lower.contains("unknown"));
+    if looks_like_model || lower.contains("embedding-only") || lower.contains("no chat model") {
+        return "model_unavailable".to_string();
+    }
+
+    let looks_like_connectivity = lower.contains("timed out")
+        || lower.contains("connection refused")
+        || lower.contains("failed to send request")
+        || lower.contains("dns")
+        || lower.contains("name or service not known")
+        || lower.contains("http");
+    if looks_like_connectivity {
+        return "provider_unreachable".to_string();
+    }
+
+    if lower.contains("tool") {
+        return "tool_runtime_error".to_string();
+    }
+
+    if lower.contains("sandbox") || lower.contains("permission denied") {
+        return "sandbox_restriction".to_string();
+    }
+
+    "unknown".to_string()
+}
+
+fn load_onboard_metrics(paths: &RexosPaths) -> OnboardMetrics {
+    let p = onboard_metrics_path(paths);
+    match std::fs::read_to_string(&p) {
+        Ok(raw) => serde_json::from_str::<OnboardMetrics>(&raw).unwrap_or_default(),
+        Err(_) => OnboardMetrics::default(),
+    }
+}
+
+fn save_onboard_metrics(paths: &RexosPaths, metrics: &OnboardMetrics) -> anyhow::Result<()> {
+    let p = onboard_metrics_path(paths);
+    let raw = serde_json::to_string_pretty(metrics)?;
+    std::fs::write(&p, raw).with_context(|| format!("write {}", p.display()))?;
+    Ok(())
+}
+
+fn append_onboard_event(paths: &RexosPaths, event: &OnboardEvent) -> anyhow::Result<()> {
+    let p = onboard_events_path(paths);
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&p)
+        .with_context(|| format!("open {}", p.display()))?;
+    let line = serde_json::to_string(event)?;
+    writeln!(f, "{line}").with_context(|| format!("append {}", p.display()))?;
+    Ok(())
+}
+
+fn record_onboard_attempt(
+    paths: &RexosPaths,
+    workspace: &Path,
+    session_id: &str,
+    success: bool,
+    failure_category: Option<&str>,
+    error: Option<&str>,
+) -> anyhow::Result<OnboardMetrics> {
+    let mut metrics = load_onboard_metrics(paths);
+    metrics.attempted_first_task += 1;
+    if success {
+        metrics.first_task_success += 1;
+    } else {
+        metrics.first_task_failed += 1;
+        if let Some(category) = failure_category {
+            let entry = metrics.failure_by_category.entry(category.to_string()).or_insert(0);
+            *entry += 1;
+        }
+    }
+    metrics.updated_at_ms = now_ms();
+    save_onboard_metrics(paths, &metrics)?;
+
+    let event = OnboardEvent {
+        ts_ms: metrics.updated_at_ms,
+        workspace: workspace.display().to_string(),
+        session_id: session_id.to_string(),
+        outcome: if success {
+            "success".to_string()
+        } else {
+            "failed".to_string()
+        },
+        failure_category: failure_category.map(|s| s.to_string()),
+        error: error.map(|s| s.to_string()),
+    };
+    append_onboard_event(paths, &event)?;
+
+    Ok(metrics)
 }
 
 async fn fetch_openai_compat_models(base_url: &str, timeout_ms: u64) -> anyhow::Result<Vec<String>> {
@@ -1220,5 +1394,54 @@ edition = "2021"
 
         assert!(!is_onboard_blocking_doctor_error(&git_error));
         assert!(!is_onboard_blocking_doctor_error(&browser_warn));
+    }
+
+    #[test]
+    fn classify_onboard_failure_groups_common_causes() {
+        assert_eq!(
+            classify_onboard_failure("model llama3.2 not found"),
+            "model_unavailable"
+        );
+        assert_eq!(
+            classify_onboard_failure("request timed out while calling http provider"),
+            "provider_unreachable"
+        );
+        assert_eq!(
+            classify_onboard_failure("tool call failed with invalid arguments"),
+            "tool_runtime_error"
+        );
+    }
+
+    #[test]
+    fn record_onboard_attempt_updates_metrics_and_events() {
+        let tmp = tempdir().unwrap();
+        let paths = RexosPaths {
+            base_dir: tmp.path().join(".rexos"),
+        };
+        std::fs::create_dir_all(&paths.base_dir).unwrap();
+        let workspace = tmp.path().join("demo-work");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let m1 = record_onboard_attempt(&paths, &workspace, "s1", true, None, None).unwrap();
+        assert_eq!(m1.attempted_first_task, 1);
+        assert_eq!(m1.first_task_success, 1);
+        assert_eq!(m1.first_task_failed, 0);
+
+        let m2 = record_onboard_attempt(
+            &paths,
+            &workspace,
+            "s2",
+            false,
+            Some("provider_unreachable"),
+            Some("timeout"),
+        )
+        .unwrap();
+        assert_eq!(m2.attempted_first_task, 2);
+        assert_eq!(m2.first_task_success, 1);
+        assert_eq!(m2.first_task_failed, 1);
+        assert_eq!(m2.failure_by_category.get("provider_unreachable"), Some(&1));
+
+        let events_raw = std::fs::read_to_string(onboard_events_path(&paths)).unwrap();
+        assert_eq!(events_raw.lines().count(), 2);
     }
 }

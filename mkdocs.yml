@@ -109,6 +109,7 @@ plugins:
             Explanation: 说明
             Concepts: 概念
             Security & Sandboxing: 安全与沙盒
+            Reliability Baseline: 可靠性基线
             Reference: 参考
             Config: 配置
             Tools: 工具
@@ -177,6 +178,7 @@ nav:
       - Explanation:
           - Concepts: explanation/concepts.md
           - Security & Sandboxing: explanation/security.md
+          - Reliability Baseline: explanation/reliability-baseline.md
   - Examples:
       - Common Use Cases:
           - Index: how-to/use-cases.md
