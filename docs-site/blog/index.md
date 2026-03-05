@@ -4,9 +4,8 @@ Practical notes for builders choosing an Agent OS and scaling from local prototy
 
 ## Latest posts
 
-- [What Is LoopForge? (Formerly LoopForge)](what-is-loopforge.md)
-- [LoopForge vs OpenFang/OpenClaw (Builder View)](rexos-vs-openfang-openclaw.md)
-- [Editorial Calendar](editorial-calendar.md)
+- [What Is LoopForge?](what-is-loopforge.md)
+- [LoopForge vs OpenFang/OpenClaw](rexos-vs-openfang-openclaw.md)
 
 ## Suggested reading order
 

@@ -4,9 +4,8 @@
 
 ## 最新文章
 
-- [什么是 LoopForge？（原 RexOS）](what-is-loopforge.md)
-- [LoopForge 与 OpenFang/OpenClaw 对比（开发者视角）](rexos-vs-openfang-openclaw.md)
-- [内容发布日历](editorial-calendar.md)
+- [什么是 LoopForge？](what-is-loopforge.md)
+- [LoopForge 与 OpenFang/OpenClaw](rexos-vs-openfang-openclaw.md)
 
 ## 建议阅读顺序
 
