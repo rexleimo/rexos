@@ -1,15 +1,15 @@
 # Beginner FAQ
 
 This page is intentionally short and copy/paste-friendly.
-If you are blocked, run `rexos doctor` first.
+If you are blocked, run `loopforge doctor` first (`rexos doctor` remains compatible).
 
 ## 1) I installed RexOS. What is the minimum first run?
 
 ```bash
 ollama serve
-rexos init
+loopforge init
 mkdir -p rexos-demo
-rexos agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
+loopforge agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
 cat rexos-demo/hello.txt
 ```
 
@@ -39,8 +39,8 @@ default_model = "qwen3:4b"
 ## 3) How do I know config and dependencies are healthy?
 
 ```bash
-rexos config validate
-rexos doctor
+loopforge config validate
+loopforge doctor
 ```
 
 `doctor` should report:
@@ -63,7 +63,7 @@ Try:
 Example:
 
 ```bash
-rexos agent run --workspace rexos-demo --prompt "Read README.md and write notes/summary.md with 5 bullets."
+loopforge agent run --workspace rexos-demo --prompt "Read README.md and write notes/summary.md with 5 bullets."
 ```
 
 ## 5) Why did a tool call fail with argument errors?
@@ -81,14 +81,14 @@ Always use a dedicated workspace and commit early:
 
 ```bash
 mkdir -p /tmp/rexos-work
-rexos agent run --workspace /tmp/rexos-work --prompt "..."
+loopforge agent run --workspace /tmp/rexos-work --prompt "..."
 ```
 
 For repository work, prefer harness:
 
 ```bash
-rexos harness init my-repo
-rexos harness run my-repo --prompt "Run tests and fix one failing case"
+loopforge harness init my-repo
+loopforge harness run my-repo --prompt "Run tests and fix one failing case"
 ```
 
 ## 7) Browser + web tasks fail on specific sites. Is that a bug?
@@ -115,7 +115,7 @@ Verification command:
 Example:
 
 ```bash
-rexos agent run --workspace rexos-demo --prompt "Goal: summarize Cargo.toml dependencies. Output file: notes/deps.md. Constraints: 8 bullets max. Verification: file must exist."
+loopforge agent run --workspace rexos-demo --prompt "Goal: summarize Cargo.toml dependencies. Output file: notes/deps.md. Constraints: 8 bullets max. Verification: file must exist."
 ```
 
 ## 9) What should I include in a bug report?
@@ -130,7 +130,7 @@ Include:
 Suggested capture:
 
 ```bash
-rexos doctor > doctor.txt
+loopforge doctor > doctor.txt
 ```
 
 ## 10) Where should I continue learning?

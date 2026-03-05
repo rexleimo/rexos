@@ -1,15 +1,15 @@
 # 新手 FAQ
 
 这页是给新手准备的“短答案 + 可复制命令”。
-如果你卡住，先跑一遍 `rexos doctor`。
+如果你卡住，先跑一遍 `loopforge doctor`（`rexos doctor` 仍兼容）。
 
 ## 1）刚安装完，最小可运行流程是什么？
 
 ```bash
 ollama serve
-rexos init
+loopforge init
 mkdir -p rexos-demo
-rexos agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
+loopforge agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
 cat rexos-demo/hello.txt
 ```
 
@@ -39,8 +39,8 @@ default_model = "qwen3:4b"
 ## 3）怎么快速判断环境健康？
 
 ```bash
-rexos config validate
-rexos doctor
+loopforge config validate
+loopforge doctor
 ```
 
 `doctor` 里至少应看到：
@@ -63,7 +63,7 @@ rexos doctor
 示例：
 
 ```bash
-rexos agent run --workspace rexos-demo --prompt "Read README.md and write notes/summary.md with 5 bullets."
+loopforge agent run --workspace rexos-demo --prompt "Read README.md and write notes/summary.md with 5 bullets."
 ```
 
 ## 5）为什么会报“tool arguments/JSON 参数错误”？
@@ -81,17 +81,17 @@ rexos agent run --workspace rexos-demo --prompt "Read README.md and write notes/
 
 ```bash
 mkdir -p /tmp/rexos-work
-rexos agent run --workspace /tmp/rexos-work --prompt "..."
+loopforge agent run --workspace /tmp/rexos-work --prompt "..."
 ```
 
 仓库改动建议走 harness：
 
 ```bash
-rexos harness init my-repo
-rexos harness run my-repo --prompt "Run tests and fix one failing case"
+loopforge harness init my-repo
+loopforge harness run my-repo --prompt "Run tests and fix one failing case"
 ```
 
-## 7）浏览器任务在某些网站失败，是不是 RexOS 坏了？
+## 7）浏览器任务在某些网站失败，是不是 LoopForge 坏了？
 
 不一定。部分网站存在反爬与动态渲染，页面结构会波动。
 
@@ -115,7 +115,7 @@ Verification command:
 示例：
 
 ```bash
-rexos agent run --workspace rexos-demo --prompt "Goal: summarize Cargo.toml dependencies. Output file: notes/deps.md. Constraints: 8 bullets max. Verification: file must exist."
+loopforge agent run --workspace rexos-demo --prompt "Goal: summarize Cargo.toml dependencies. Output file: notes/deps.md. Constraints: 8 bullets max. Verification: file must exist."
 ```
 
 ## 9）提 bug 时需要哪些信息？
@@ -130,7 +130,7 @@ rexos agent run --workspace rexos-demo --prompt "Goal: summarize Cargo.toml depe
 建议附带：
 
 ```bash
-rexos doctor > doctor.txt
+loopforge doctor > doctor.txt
 ```
 
 ## 10）下一步学什么？

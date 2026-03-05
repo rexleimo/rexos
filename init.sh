@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[rexos] building..."
+echo "[loopforge] building..."
 cargo build
 
-echo "[rexos] tests..."
+echo "[loopforge] tests..."
 cargo test
 
-echo "[rexos] smoke: CLI help"
+echo "[loopforge] smoke: CLI help"
 cargo build -p rexos-cli
+./target/debug/loopforge --help >/dev/null
 ./target/debug/rexos --help >/dev/null
 
-echo "[rexos] done"
+echo "[loopforge] done"
