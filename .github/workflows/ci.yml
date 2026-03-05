@@ -25,7 +25,8 @@ jobs:
             scripts.tests.test_ci_workflows \
             scripts.tests.test_verify_version_changelog \
             scripts.tests.test_verify_release_consistency \
-            scripts.tests.test_provider_health_report
+            scripts.tests.test_provider_health_report \
+            scripts.tests.test_package_release
 
   versioning-guard:
     name: versioning guard (PR)

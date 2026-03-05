@@ -13,6 +13,7 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertIn("scripts.tests.test_verify_version_changelog", ci)
         self.assertIn("scripts.tests.test_verify_release_consistency", ci)
         self.assertIn("scripts.tests.test_provider_health_report", ci)
+        self.assertIn("scripts.tests.test_package_release", ci)
 
     def test_provider_nightly_workflow_generates_health_artifacts(self):
         workflow = (
@@ -30,6 +31,10 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertIn("workflow_dispatch", workflow)
         self.assertIn("cargo build --release -p rexos-cli --locked", workflow)
         self.assertIn("python scripts/package_release.py", workflow)
+        self.assertIn("--compat-bin", workflow)
+        self.assertIn("target/release/loopforge", workflow)
+        self.assertIn("target/release/rexos", workflow)
+        self.assertIn("loopforge-${version}", workflow)
         self.assertIn("actions/upload-artifact@v4", workflow)
         self.assertNotIn("softprops/action-gh-release", workflow)
 
@@ -40,6 +45,10 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertIn("Smoke test packaged binary (Unix)", workflow)
         self.assertIn("Smoke test packaged binary (Windows)", workflow)
         self.assertIn("doctor --json", workflow)
+        self.assertIn("--compat-bin", workflow)
+        self.assertIn("target/release/loopforge", workflow)
+        self.assertIn("target/release/rexos", workflow)
+        self.assertIn("loopforge-${version}", workflow)
         self.assertIn("runner.os != 'Windows'", workflow)
         self.assertIn("runner.os == 'Windows'", workflow)
 

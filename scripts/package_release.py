@@ -40,10 +40,19 @@ def create_zip(archive_path: Path, stage_dir: Path) -> None:
 
 
 def main(argv: list[str]) -> int:
-    parser = argparse.ArgumentParser(description="Package a rexos release archive + sha256 file.")
+    parser = argparse.ArgumentParser(description="Package a loopforge release archive + sha256 file.")
     parser.add_argument("--version", required=True, help="Version string, e.g. v0.1.0")
     parser.add_argument("--target", required=True, help="Target triple or label, e.g. x86_64-unknown-linux-gnu")
-    parser.add_argument("--bin", required=True, help="Path to built rexos binary (rexos or rexos.exe)")
+    parser.add_argument(
+        "--bin",
+        required=True,
+        help="Path to built loopforge binary (loopforge or loopforge.exe)",
+    )
+    parser.add_argument(
+        "--compat-bin",
+        default=None,
+        help="Optional compatibility binary path (rexos or rexos.exe)",
+    )
     parser.add_argument("--out-dir", default="dist", help="Output directory (default: dist)")
     parser.add_argument(
         "--include",
@@ -66,7 +75,17 @@ def main(argv: list[str]) -> int:
         print(f"error: --bin is not a file: {bin_path}", file=sys.stderr)
         return 2
 
-    base_name = f"rexos-{args.version}-{args.target}"
+    compat_bin_path = None
+    if args.compat_bin:
+        compat_bin_path = (repo_root / args.compat_bin).resolve()
+        if not compat_bin_path.exists():
+            print(f"error: --compat-bin does not exist: {compat_bin_path}", file=sys.stderr)
+            return 2
+        if not compat_bin_path.is_file():
+            print(f"error: --compat-bin is not a file: {compat_bin_path}", file=sys.stderr)
+            return 2
+
+    base_name = f"loopforge-{args.version}-{args.target}"
     stage_dir = out_dir / base_name
     if stage_dir.exists():
         shutil.rmtree(stage_dir)
@@ -77,6 +96,12 @@ def main(argv: list[str]) -> int:
     shutil.copy2(bin_path, dest_bin)
     if dest_bin.suffix.lower() != ".exe":
         os.chmod(dest_bin, 0o755)
+
+    if compat_bin_path is not None:
+        compat_dest = stage_dir / compat_bin_path.name
+        shutil.copy2(compat_bin_path, compat_dest)
+        if compat_dest.suffix.lower() != ".exe":
+            os.chmod(compat_dest, 0o755)
 
     # Default include set if present.
     default_includes = ["README.md", "LICENSE", "LICENSE.txt"]
@@ -116,4 +141,3 @@ def main(argv: list[str]) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
-
