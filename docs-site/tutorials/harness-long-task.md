@@ -26,19 +26,19 @@ Pick an empty folder for this tutorial:
 Without a prompt, this only creates the durable artifacts + the initial git commit:
 
 ```bash
-rexos harness init rexos-task
+loopforge harness init rexos-task
 ```
 
 With a prompt, RexOS runs an “initializer agent” to populate `features.json` and adjust the init script:
 
 ```bash
-rexos harness init rexos-task --prompt "Create a small CLI in this workspace that prints Hello and has a passing test suite"
+loopforge harness init rexos-task --prompt "Create a small CLI in this workspace that prints Hello and has a passing test suite"
 ```
 
 ## 3) Run an incremental session
 
 ```bash
-rexos harness run rexos-task --prompt "Implement the next failing feature"
+loopforge harness run rexos-task --prompt "Implement the next failing feature"
 ```
 
 The harness will:
@@ -52,7 +52,7 @@ The harness will:
 ## 4) Repeat until done
 
 ```bash
-rexos harness run rexos-task --prompt "Continue"
+loopforge harness run rexos-task --prompt "Continue"
 ```
 
 ## Where state lives

@@ -1,7 +1,7 @@
 # Beginner FAQ
 
 This page is intentionally short and copy/paste-friendly.
-If you are blocked, run `loopforge doctor` first (`rexos doctor` remains compatible).
+If you are blocked, run `loopforge doctor` first.
 
 ## 1) I installed RexOS. What is the minimum first run?
 

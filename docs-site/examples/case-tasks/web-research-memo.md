@@ -8,12 +8,12 @@ Edit the topic in the prompt and run:
 
 === "macOS/Linux"
     ```bash
-    rexos agent run --workspace . --prompt "Topic: 'effective harnesses for long-running agents'. Use web_search to find 5 relevant sources. Pick the best 3 and use web_fetch to pull their content. Write notes/research.md with: (1) 5-bullet summary, (2) 3 key takeaways, (3) open questions, (4) source URLs list. Keep it under 500 words."
+    loopforge agent run --workspace . --prompt "Topic: 'effective harnesses for long-running agents'. Use web_search to find 5 relevant sources. Pick the best 3 and use web_fetch to pull their content. Write notes/research.md with: (1) 5-bullet summary, (2) 3 key takeaways, (3) open questions, (4) source URLs list. Keep it under 500 words."
     ```
 
 === "Windows (PowerShell)"
     ```powershell
-    rexos agent run --workspace . --prompt "Topic: 'effective harnesses for long-running agents'. Use web_search to find 5 relevant sources. Pick the best 3 and use web_fetch to pull their content. Write notes/research.md with: (1) 5-bullet summary, (2) 3 key takeaways, (3) open questions, (4) source URLs list. Keep it under 500 words."
+    loopforge agent run --workspace . --prompt "Topic: 'effective harnesses for long-running agents'. Use web_search to find 5 relevant sources. Pick the best 3 and use web_fetch to pull their content. Write notes/research.md with: (1) 5-bullet summary, (2) 3 key takeaways, (3) open questions, (4) source URLs list. Keep it under 500 words."
     ```
 
 ## What to expect

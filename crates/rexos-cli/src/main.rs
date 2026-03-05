@@ -48,7 +48,7 @@ enum Command {
     /// One-command onboarding check (init + config + doctor + optional first task)
     Onboard {
         /// Workspace directory for the first verification run
-        #[arg(long, default_value = "rexos-onboard-demo")]
+        #[arg(long, default_value = "loopforge-onboard-demo")]
         workspace: PathBuf,
         /// Prompt for the first verification run
         #[arg(long, default_value = "Create hello.txt with the word hi")]
@@ -977,26 +977,26 @@ mod tests {
 
     #[test]
     fn cli_parses_config_validate_subcommand() {
-        let parsed = Cli::try_parse_from(["rexos", "config", "validate"]);
+        let parsed = Cli::try_parse_from(["loopforge", "config", "validate"]);
         assert!(
             parsed.is_ok(),
-            "expected `rexos config validate` to parse, got: {parsed:?}"
+            "expected `loopforge config validate` to parse, got: {parsed:?}"
         );
     }
 
     #[test]
     fn cli_parses_release_check_subcommand() {
-        let parsed = Cli::try_parse_from(["rexos", "release", "check", "--tag", "v0.1.0"]);
+        let parsed = Cli::try_parse_from(["loopforge", "release", "check", "--tag", "v0.1.0"]);
         assert!(
             parsed.is_ok(),
-            "expected `rexos release check` to parse, got: {parsed:?}"
+            "expected `loopforge release check` to parse, got: {parsed:?}"
         );
     }
 
     #[test]
     fn cli_parses_acp_events_subcommand() {
         let parsed = Cli::try_parse_from([
-            "rexos",
+            "loopforge",
             "acp",
             "events",
             "--session",
@@ -1006,14 +1006,14 @@ mod tests {
         ]);
         assert!(
             parsed.is_ok(),
-            "expected `rexos acp events` to parse, got: {parsed:?}"
+            "expected `loopforge acp events` to parse, got: {parsed:?}"
         );
     }
 
     #[test]
     fn cli_parses_acp_checkpoints_subcommand() {
         let parsed = Cli::try_parse_from([
-            "rexos",
+            "loopforge",
             "acp",
             "checkpoints",
             "--session",
@@ -1021,14 +1021,14 @@ mod tests {
         ]);
         assert!(
             parsed.is_ok(),
-            "expected `rexos acp checkpoints` to parse, got: {parsed:?}"
+            "expected `loopforge acp checkpoints` to parse, got: {parsed:?}"
         );
     }
 
     #[test]
     fn cli_parses_agent_run_allowed_tools() {
         let parsed = Cli::try_parse_from([
-            "rexos",
+            "loopforge",
             "agent",
             "run",
             "--workspace",
@@ -1047,10 +1047,10 @@ mod tests {
     #[test]
     fn cli_parses_onboard_subcommand() {
         let parsed =
-            Cli::try_parse_from(["rexos", "onboard", "--workspace", "rexos-onboard-demo"]);
+            Cli::try_parse_from(["loopforge", "onboard", "--workspace", "loopforge-onboard-demo"]);
         assert!(
             parsed.is_ok(),
-            "expected `rexos onboard` to parse, got: {parsed:?}"
+            "expected `loopforge onboard` to parse, got: {parsed:?}"
         );
     }
 

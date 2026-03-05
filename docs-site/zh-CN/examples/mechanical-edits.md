@@ -6,7 +6,7 @@
 
 ```bash
 cd /path/to/repo
-rexos agent run --workspace . --prompt "把 Foo 重命名成 Bar，更新 imports，并保持测试通过。"
+loopforge agent run --workspace . --prompt "把 Foo 重命名成 Bar，更新 imports，并保持测试通过。"
 ```
 
 一些效果不错的 prompt：

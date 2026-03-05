@@ -8,12 +8,12 @@
 
 === "macOS/Linux"
     ```bash
-    rexos agent run --workspace . --prompt "主题：'长任务 agent 的有效 harness 设计'。先用 web_search 找 5 个相关来源；挑最靠谱的 3 个用 web_fetch 抓取正文；写 notes/research.md，包含：(1) 5 条要点总结 (2) 3 个关键结论 (3) 仍未解决的问题 (4) 来源 URL 列表。全文不超过 500 字。"
+    loopforge agent run --workspace . --prompt "主题：'长任务 agent 的有效 harness 设计'。先用 web_search 找 5 个相关来源；挑最靠谱的 3 个用 web_fetch 抓取正文；写 notes/research.md，包含：(1) 5 条要点总结 (2) 3 个关键结论 (3) 仍未解决的问题 (4) 来源 URL 列表。全文不超过 500 字。"
     ```
 
 === "Windows (PowerShell)"
     ```powershell
-    rexos agent run --workspace . --prompt "主题：'长任务 agent 的有效 harness 设计'。先用 web_search 找 5 个相关来源；挑最靠谱的 3 个用 web_fetch 抓取正文；写 notes/research.md，包含：(1) 5 条要点总结 (2) 3 个关键结论 (3) 仍未解决的问题 (4) 来源 URL 列表。全文不超过 500 字。"
+    loopforge agent run --workspace . --prompt "主题：'长任务 agent 的有效 harness 设计'。先用 web_search 找 5 个相关来源；挑最靠谱的 3 个用 web_fetch 抓取正文；写 notes/research.md，包含：(1) 5 条要点总结 (2) 3 个关键结论 (3) 仍未解决的问题 (4) 来源 URL 列表。全文不超过 500 字。"
     ```
 
 ## 预期产物

@@ -55,7 +55,7 @@ impl DoctorReport {
 
     pub fn to_text(&self) -> String {
         let mut out = String::new();
-        out.push_str("RexOS doctor\n\n");
+        out.push_str("LoopForge doctor\n\n");
         for c in &self.checks {
             let prefix = match c.status {
                 CheckStatus::Ok => "OK  ",
@@ -111,7 +111,7 @@ pub async fn run_doctor(opts: DoctorOptions) -> anyhow::Result<DoctorReport> {
             if config_path.exists() {
                 ""
             } else {
-                " (missing; run `loopforge init` or `rexos init`)"
+                " (missing; run `loopforge init`)"
             }
         ),
     });
@@ -129,7 +129,7 @@ pub async fn run_doctor(opts: DoctorOptions) -> anyhow::Result<DoctorReport> {
             if db_path.exists() {
                 ""
             } else {
-                " (missing; run `loopforge init` or `rexos init`)"
+                " (missing; run `loopforge init`)"
             }
         ),
     });

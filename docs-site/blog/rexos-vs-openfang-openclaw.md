@@ -24,8 +24,8 @@ Goal: help builders choose the right tool faster.
 LoopForge pushes a strict engineering loop:
 
 ```bash
-rexos harness init my-repo
-rexos harness run my-repo --prompt "Run tests and fix one failing case"
+loopforge harness init my-repo
+loopforge harness run my-repo --prompt "Run tests and fix one failing case"
 ```
 
 If your team measures progress by repeatable checkpoints and artifact trails, this pattern is very effective.
@@ -36,8 +36,8 @@ LoopForge default path is optimized for local bring-up with Ollama:
 
 ```bash
 ollama serve
-rexos init
-rexos agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
+loopforge init
+loopforge agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
 ```
 
 This keeps first-run friction low for engineering teams.
@@ -65,8 +65,8 @@ Use this simple decision tree:
 
 ```bash
 ollama serve
-rexos init
-rexos agent run --workspace rexos-demo --prompt "Create notes/plan.md with a 7-day migration checklist"
+loopforge init
+loopforge agent run --workspace rexos-demo --prompt "Create notes/plan.md with a 7-day migration checklist"
 ```
 
 ## Next reading

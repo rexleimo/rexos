@@ -1,7 +1,7 @@
 # 新手 FAQ
 
 这页是给新手准备的“短答案 + 可复制命令”。
-如果你卡住，先跑一遍 `loopforge doctor`（`rexos doctor` 仍兼容）。
+如果你卡住，先跑一遍 `loopforge doctor`。
 
 ## 1）刚安装完，最小可运行流程是什么？
 

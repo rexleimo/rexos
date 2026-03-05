@@ -1,11 +1,11 @@
 # Troubleshooting
 
-## First step: run `rexos doctor`
+## First step: run `loopforge doctor`
 
 If you’re not sure what’s wrong, start here:
 
 ```bash
-rexos doctor
+loopforge doctor
 ```
 
 It checks: `~/.rexos` paths, `config.toml`, provider env vars, Ollama connectivity (when local), browser/CDP connectivity, and core tooling like `git`.

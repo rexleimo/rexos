@@ -18,11 +18,10 @@ LoopForge is a **local-first long-running Agent OS** for engineering workflows:
 
 Changed:
 - Product/public name: **LoopForge**
+- CLI command: `loopforge`
 
-Unchanged for compatibility:
-- CLI command: `rexos`
+Kept for continuity:
 - Config and data dir: `~/.rexos`
-- Existing command snippets and scripts continue to work
 
 ## Why the name "LoopForge"
 
@@ -34,8 +33,8 @@ Unchanged for compatibility:
 
 ```bash
 ollama serve
-rexos init
-rexos agent run --workspace loopforge-demo --prompt "Create notes/hello.md with a short intro to LoopForge."
+loopforge init
+loopforge agent run --workspace loopforge-demo --prompt "Create notes/hello.md with a short intro to LoopForge."
 ```
 
 ## Brand keywords (for docs/search/community)

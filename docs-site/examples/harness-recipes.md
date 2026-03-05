@@ -12,7 +12,7 @@ Use the harness when you want RexOS to iterate until your verifier passes, while
 
 ```bash
 cd /path/to/your/repo
-rexos harness init . --prompt "Create a features checklist for: all tests passing, lint clean, and basic smoke check"
+loopforge harness init . --prompt "Create a features checklist for: all tests passing, lint clean, and basic smoke check"
 ```
 
 2) Customize the init script to reflect your verifier (tests/build/lint).
@@ -30,7 +30,7 @@ rexos harness init . --prompt "Create a features checklist for: all tests passin
 3) Run incremental loops until it passes:
 
 ```bash
-rexos harness run . --prompt "Continue. Focus on the next failing verifier output."
+loopforge harness run . --prompt "Continue. Focus on the next failing verifier output."
 ```
 
 ### What to expect
@@ -42,7 +42,7 @@ rexos harness run . --prompt "Continue. Focus on the next failing verifier outpu
 - When your verifier passes, RexOS makes a **checkpoint git commit**.
 
 !!! tip "Rollback-friendly"
-    If a checkpoint is bad, use git normally (e.g. `git reset --hard HEAD~1`) and run `rexos harness run` again.
+    If a checkpoint is bad, use git normally (e.g. `git reset --hard HEAD~1`) and run `loopforge harness run` again.
 
 ## 2) Long refactors with checkpoints (keep scope small per run)
 

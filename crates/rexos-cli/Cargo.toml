@@ -9,10 +9,6 @@ rust-version.workspace = true
 name = "loopforge"
 path = "src/main.rs"
 
-[[bin]]
-name = "rexos"
-path = "src/main.rs"
-
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true

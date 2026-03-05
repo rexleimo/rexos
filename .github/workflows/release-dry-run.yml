@@ -18,19 +18,15 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             bin: target/release/loopforge
-            compat_bin: target/release/rexos
           - os: macos-15-intel
             target: x86_64-apple-darwin
             bin: target/release/loopforge
-            compat_bin: target/release/rexos
           - os: macos-14
             target: aarch64-apple-darwin
             bin: target/release/loopforge
-            compat_bin: target/release/rexos
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             bin: target/release/loopforge.exe
-            compat_bin: target/release/rexos.exe
 
     steps:
       - name: Checkout
@@ -51,7 +47,7 @@ jobs:
         run: cargo build --release -p rexos-cli --locked
 
       - name: Package (dry run)
-        run: python scripts/package_release.py --version "dryrun-${{ github.run_id }}" --target "${{ matrix.target }}" --bin "${{ matrix.bin }}" --compat-bin "${{ matrix.compat_bin }}" --out-dir dist
+        run: python scripts/package_release.py --version "dryrun-${{ github.run_id }}" --target "${{ matrix.target }}" --bin "${{ matrix.bin }}" --out-dir dist
 
       - name: Smoke test packaged binary (Unix)
         if: runner.os != 'Windows'
@@ -65,9 +61,7 @@ jobs:
           mkdir -p smoke
           tar -xzf "${archive}" -C smoke
           bin="smoke/${base}/loopforge"
-          compat_bin="smoke/${base}/rexos"
           "${bin}" --help >/dev/null
-          "${compat_bin}" --help >/dev/null
           doctor_json="$("${bin}" doctor --json --timeout-ms 200)"
           printf '%s' "${doctor_json}" | python3 -c "import json,sys; data=json.load(sys.stdin); assert 'summary' in data and 'checks' in data"
 
@@ -82,9 +76,7 @@ jobs:
           Remove-Item -Recurse -Force smoke -ErrorAction SilentlyContinue
           Expand-Archive -Path $archive -DestinationPath smoke -Force
           $bin = "smoke/$base/loopforge.exe"
-          $compatBin = "smoke/$base/rexos.exe"
           & $bin --help | Out-Null
-          & $compatBin --help | Out-Null
           $doctor = & $bin doctor --json --timeout-ms 200
           $parsed = $doctor | ConvertFrom-Json
           if ($null -eq $parsed.summary -or $null -eq $parsed.checks) {

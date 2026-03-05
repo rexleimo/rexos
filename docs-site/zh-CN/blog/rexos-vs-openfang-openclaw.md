@@ -23,8 +23,8 @@
 LoopForge 的核心优势是工程化循环：
 
 ```bash
-rexos harness init my-repo
-rexos harness run my-repo --prompt "Run tests and fix one failing case"
+loopforge harness init my-repo
+loopforge harness run my-repo --prompt "Run tests and fix one failing case"
 ```
 
 如果你的团队以“可复现 checkpoint + 产物留痕”衡量进展，这种模式更稳。
@@ -35,8 +35,8 @@ LoopForge 默认就是本地 Ollama 开发流：
 
 ```bash
 ollama serve
-rexos init
-rexos agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
+loopforge init
+loopforge agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
 ```
 
 对工程团队来说，首跑成本更低。
@@ -62,8 +62,8 @@ LoopForge 对应优化（本次已开始补齐）：
 
 ```bash
 ollama serve
-rexos init
-rexos agent run --workspace rexos-demo --prompt "Create notes/plan.md with a 7-day migration checklist"
+loopforge init
+loopforge agent run --workspace rexos-demo --prompt "Create notes/plan.md with a 7-day migration checklist"
 ```
 
 ## 继续阅读

@@ -25,12 +25,12 @@
 
 === "Bash (macOS/Linux)"
     ```bash
-    rexos agent run --workspace . --prompt "Use the pdf tool to extract text from samples/dummy.pdf (max_pages=10, max_chars=12000). Then write notes/pdf_summary.md with: (1) a 6-bullet summary, (2) key terms, and (3) any missing/garbled parts you notice. Only use the extracted PDF text; do not invent content."
+    loopforge agent run --workspace . --prompt "Use the pdf tool to extract text from samples/dummy.pdf (max_pages=10, max_chars=12000). Then write notes/pdf_summary.md with: (1) a 6-bullet summary, (2) key terms, and (3) any missing/garbled parts you notice. Only use the extracted PDF text; do not invent content."
     ```
 
 === "PowerShell (Windows)"
     ```powershell
-    rexos agent run --workspace . --prompt "Use the pdf tool to extract text from samples/dummy.pdf (max_pages=10, max_chars=12000). Then write notes/pdf_summary.md with: (1) a 6-bullet summary, (2) key terms, and (3) any missing/garbled parts you notice. Only use the extracted PDF text; do not invent content."
+    loopforge agent run --workspace . --prompt "Use the pdf tool to extract text from samples/dummy.pdf (max_pages=10, max_chars=12000). Then write notes/pdf_summary.md with: (1) a 6-bullet summary, (2) key terms, and (3) any missing/garbled parts you notice. Only use the extracted PDF text; do not invent content."
     ```
 
 ## Optional: select pages

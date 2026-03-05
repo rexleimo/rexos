@@ -4,7 +4,7 @@ RexOS loads provider config from `~/.rexos/config.toml` and routes each task kin
 
 ## Built-in presets (out of the box)
 
-After `rexos init`, your `~/.rexos/config.toml` already includes common providers and sensible defaults:
+After `loopforge init`, your `~/.rexos/config.toml` already includes common providers and sensible defaults:
 
 - Local: `ollama`
 - OpenAI-compatible: `deepseek`, `kimi` / `kimi_cn`, `qwen` / `qwen_cn` / `qwen_sg`, `glm`, `minimax`, `nvidia`

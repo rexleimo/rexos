@@ -10,14 +10,14 @@ See also: [Browser Automation (CDP)](../browser-automation.md).
     ```bash
     export REXOS_BROWSER_HEADLESS=0
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Rust_(programming_language) . Read the page. Write a short summary to notes/wiki_rust.md. Save a screenshot to .rexos/browser/wiki_rust.png. Close the browser."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Rust_(programming_language) . Read the page. Write a short summary to notes/wiki_rust.md. Save a screenshot to .rexos/browser/wiki_rust.png. Close the browser."
     ```
 
 === "PowerShell (Windows)"
     ```powershell
     $env:REXOS_BROWSER_HEADLESS = "0"
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Rust_(programming_language) . Read the page. Write a short summary to notes/wiki_rust.md. Save a screenshot to .rexos/browser/wiki_rust.png. Close the browser."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Rust_(programming_language) . Read the page. Write a short summary to notes/wiki_rust.md. Save a screenshot to .rexos/browser/wiki_rust.png. Close the browser."
     ```
 
 ## What to expect

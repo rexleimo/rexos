@@ -11,7 +11,7 @@ See also: [Browser Automation (CDP)](../browser-automation.md).
     mkdir -p rexos-demo && cd rexos-demo
     export REXOS_BROWSER_HEADLESS=0
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://example.com, read the page, write a 3-bullet summary to notes/example.md, save a screenshot to .rexos/browser/example.png, then close the browser."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://example.com, read the page, write a 3-bullet summary to notes/example.md, save a screenshot to .rexos/browser/example.png, then close the browser."
     ```
 
 === "PowerShell (Windows)"
@@ -20,7 +20,7 @@ See also: [Browser Automation (CDP)](../browser-automation.md).
     cd rexos-demo
     $env:REXOS_BROWSER_HEADLESS = "0"
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://example.com, read the page, write a 3-bullet summary to notes/example.md, save a screenshot to .rexos/browser/example.png, then close the browser."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://example.com, read the page, write a 3-bullet summary to notes/example.md, save a screenshot to .rexos/browser/example.png, then close the browser."
     ```
 
 ## Option B: Docker GUI sandbox (Chromium + noVNC)

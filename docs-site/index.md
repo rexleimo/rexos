@@ -19,7 +19,7 @@ Develop locally with small models on Ollama, then switch routing to GLM / MiniMa
 
 </div>
 
-> Brand update: LoopForge is the public name (formerly RexOS). Compatibility remains unchanged for now: CLI is still `rexos`, and config/data path is still `~/.rexos`.
+> Brand update: LoopForge is the public name (formerly RexOS). CLI command is `loopforge`; config/data path remains `~/.rexos`.
 
 <div class="grid cards" markdown>
 
@@ -50,12 +50,12 @@ Make sure you have at least one **chat model** available in Ollama (not embeddin
     # 1) Start Ollama
     ollama serve
 
-    # 2) Init LoopForge (compat command: rexos)
-    rexos init
+    # 2) Init LoopForge
+    loopforge init
 
     # 3) Run a workspace session
     mkdir -p rexos-work
-    rexos agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
     ```
 
 === "Windows (PowerShell)"
@@ -63,12 +63,12 @@ Make sure you have at least one **chat model** available in Ollama (not embeddin
     # 1) Start Ollama
     ollama serve
 
-    # 2) Init LoopForge (compat command: rexos)
-    rexos init
+    # 2) Init LoopForge
+    loopforge init
 
     # 3) Run a workspace session
     mkdir rexos-work
-    rexos agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
     ```
 
 ## How it works

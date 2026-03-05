@@ -1,7 +1,6 @@
 # CLI Reference
 
-LoopForge ships a primary binary: `loopforge`.
-Compatibility binary `rexos` remains available during migration.
+LoopForge ships a single binary: `loopforge`.
 
 ## Top-level commands
 
@@ -16,8 +15,6 @@ Compatibility binary `rexos` remains available during migration.
 - `loopforge harness init` — initialize a harness workspace (durable artifacts + git)
 - `loopforge harness run` — run an incremental harness session
 - `loopforge daemon start` — start the HTTP daemon
-
-Compatibility note: all commands above also work with `rexos` during migration.
 
 ## Examples
 

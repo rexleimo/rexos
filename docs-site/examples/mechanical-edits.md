@@ -6,7 +6,7 @@ Use `agent run` when you want a targeted change and prefer manual review/commit.
 
 ```bash
 cd /path/to/repo
-rexos agent run --workspace . --prompt "Rename Foo to Bar across the codebase. Update imports and keep tests passing."
+loopforge agent run --workspace . --prompt "Rename Foo to Bar across the codebase. Update imports and keep tests passing."
 ```
 
 Good prompts for this pattern:

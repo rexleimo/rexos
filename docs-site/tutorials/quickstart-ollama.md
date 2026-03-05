@@ -46,8 +46,6 @@ This creates:
 loopforge init
 ```
 
-Compatibility: `rexos init` still works during migration.
-
 ## 3) Run your first agent session
 
 Pick a workspace directory (tools are sandboxed to this root):

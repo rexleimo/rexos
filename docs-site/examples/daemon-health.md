@@ -3,7 +3,7 @@
 The daemon currently exposes a simple health endpoint:
 
 ```bash
-rexos daemon start --addr 127.0.0.1:8787
+loopforge daemon start --addr 127.0.0.1:8787
 curl http://127.0.0.1:8787/healthz
 ```
 

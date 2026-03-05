@@ -1,6 +1,6 @@
 # 新人复习（10 分钟）
 
-这个教程是一个“安装后自检流程”，帮你确认 RexOS 的核心链路都跑通：
+这个教程是一个“安装后自检流程”，帮你确认 LoopForge 的核心链路都跑通：
 
 - 本地模型（Ollama）可用
 - 工具调用被沙盒限制在 workspace 内
@@ -9,7 +9,7 @@
 
 ## 0) 前置条件
 
-- `rexos` 已安装并在 `PATH` 中
+- `loopforge` 已安装并在 `PATH` 中
 - Ollama 正在运行：`ollama serve`
 - Ollama 里至少有一个 **对话模型**：
 
@@ -35,14 +35,14 @@ default_model = "qwen3:4b" # 示例：换成你本机已有的模型
 如果你想一次性跑完 `init + 配置校验 + doctor + 首个任务`：
 
 ```bash
-rexos onboard --workspace rexos-onboard-demo
+loopforge onboard --workspace rexos-onboard-demo
 ```
 
 可选：
 
 ```bash
 # 只做环境与配置检查，不跑首个 agent 任务
-rexos onboard --workspace rexos-onboard-demo --skip-agent
+loopforge onboard --workspace rexos-onboard-demo --skip-agent
 ```
 
 预期：
@@ -51,10 +51,10 @@ rexos onboard --workspace rexos-onboard-demo --skip-agent
 - 在 workspace 里跑一条首任务（除非传 `--skip-agent`）
 - 打印 `session_id` 便于续跑
 
-## 1) 初始化 RexOS
+## 1) 初始化 LoopForge
 
 ```bash
-rexos init
+loopforge init
 ```
 
 预期产物：
@@ -67,14 +67,14 @@ rexos init
 === "macOS/Linux"
     ```bash
     mkdir -p rexos-demo
-    rexos agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
     cat rexos-demo/hello.txt
     ```
 
 === "Windows (PowerShell)"
     ```powershell
     mkdir rexos-demo
-    rexos agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
     Get-Content .\rexos-demo\hello.txt
     ```
 
@@ -86,7 +86,7 @@ rexos init
 ## 3) 在同一个 workspace 里续跑（记忆）
 
 ```bash
-rexos agent run --workspace rexos-demo --prompt "Append a newline + bye to hello.txt"
+loopforge agent run --workspace rexos-demo --prompt "Append a newline + bye to hello.txt"
 ```
 
 验证文件已更新：
@@ -106,13 +106,13 @@ rexos agent run --workspace rexos-demo --prompt "Append a newline + bye to hello
 === "macOS/Linux"
     ```bash
     mkdir -p rexos-harness-demo
-    rexos harness init rexos-harness-demo
+    loopforge harness init rexos-harness-demo
     ```
 
 === "Windows (PowerShell)"
     ```powershell
     mkdir rexos-harness-demo
-    rexos harness init rexos-harness-demo
+    loopforge harness init rexos-harness-demo
     ```
 
 在 `rexos-harness-demo/` 里你应该能看到：
@@ -125,7 +125,7 @@ rexos agent run --workspace rexos-demo --prompt "Append a newline + bye to hello
 运行一次 preflight（不带 prompt）：
 
 ```bash
-rexos harness run rexos-harness-demo
+loopforge harness run rexos-harness-demo
 ```
 
 ## 5) 文档按钮（可复现性）

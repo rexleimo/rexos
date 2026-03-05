@@ -18,11 +18,10 @@ LoopForge 是一个面向工程交付的 **local-first 长任务 Agent OS**，
 
 已变化：
 - 产品/对外品牌名：**LoopForge**
+- CLI 命令：`loopforge`
 
-保持兼容：
-- CLI 命令：`rexos`
+保持连续性：
 - 配置与数据目录：`~/.rexos`
-- 历史命令示例与脚本无需立即迁移
 
 ## 为什么叫 LoopForge
 
@@ -34,8 +33,8 @@ LoopForge 是一个面向工程交付的 **local-first 长任务 Agent OS**，
 
 ```bash
 ollama serve
-rexos init
-rexos agent run --workspace loopforge-demo --prompt "Create notes/hello.md with a short intro to LoopForge."
+loopforge init
+loopforge agent run --workspace loopforge-demo --prompt "Create notes/hello.md with a short intro to LoopForge."
 ```
 
 ## 品牌关键词（文档/搜索/社区）

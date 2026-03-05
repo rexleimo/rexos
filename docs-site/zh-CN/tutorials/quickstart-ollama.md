@@ -48,8 +48,6 @@ ollama serve
 loopforge init
 ```
 
-兼容说明：迁移期间 `rexos init` 仍可继续使用。
-
 ## 3) 运行第一次 session
 
 工具调用会被沙盒限制在 `--workspace` 目录内：

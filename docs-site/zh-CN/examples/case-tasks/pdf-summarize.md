@@ -25,12 +25,12 @@
 
 === "Bash（macOS/Linux）"
     ```bash
-    rexos agent run --workspace . --prompt "使用 pdf 工具从 samples/dummy.pdf 提取文本（max_pages=10, max_chars=12000）。然后写 notes/pdf_summary.md，包含：(1) 6 条 bullet 总结，(2) 关键词/术语，(3) 你观察到的缺失/乱码/异常段落。只能基于提取到的 PDF 文本，不要编造内容。"
+    loopforge agent run --workspace . --prompt "使用 pdf 工具从 samples/dummy.pdf 提取文本（max_pages=10, max_chars=12000）。然后写 notes/pdf_summary.md，包含：(1) 6 条 bullet 总结，(2) 关键词/术语，(3) 你观察到的缺失/乱码/异常段落。只能基于提取到的 PDF 文本，不要编造内容。"
     ```
 
 === "PowerShell（Windows）"
     ```powershell
-    rexos agent run --workspace . --prompt "使用 pdf 工具从 samples/dummy.pdf 提取文本（max_pages=10, max_chars=12000）。然后写 notes/pdf_summary.md，包含：(1) 6 条 bullet 总结，(2) 关键词/术语，(3) 你观察到的缺失/乱码/异常段落。只能基于提取到的 PDF 文本，不要编造内容。"
+    loopforge agent run --workspace . --prompt "使用 pdf 工具从 samples/dummy.pdf 提取文本（max_pages=10, max_chars=12000）。然后写 notes/pdf_summary.md，包含：(1) 6 条 bullet 总结，(2) 关键词/术语，(3) 你观察到的缺失/乱码/异常段落。只能基于提取到的 PDF 文本，不要编造内容。"
     ```
 
 ## 可选：选择页码

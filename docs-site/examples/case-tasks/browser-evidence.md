@@ -15,14 +15,14 @@ This is a good first “browser + LLM” workflow.
     ```bash
     export REXOS_BROWSER_HEADLESS=0
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Large_language_model . Wait for #firstHeading (browser_wait). Run browser_run_js to extract document.title and the heading text. Scroll down by 800px (browser_scroll). Read the page and write notes/browser_evidence.md with: URL, title, heading, and a 5-bullet summary based only on the page text. Save a screenshot to .rexos/browser/wikipedia_llm.png. Close the browser."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Large_language_model . Wait for #firstHeading (browser_wait). Run browser_run_js to extract document.title and the heading text. Scroll down by 800px (browser_scroll). Read the page and write notes/browser_evidence.md with: URL, title, heading, and a 5-bullet summary based only on the page text. Save a screenshot to .rexos/browser/wikipedia_llm.png. Close the browser."
     ```
 
 === "PowerShell (Windows)"
     ```powershell
     $env:REXOS_BROWSER_HEADLESS = "0"
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Large_language_model . Wait for #firstHeading (browser_wait). Run browser_run_js to extract document.title and the heading text. Scroll down by 800px (browser_scroll). Read the page and write notes/browser_evidence.md with: URL, title, heading, and a 5-bullet summary based only on the page text. Save a screenshot to .rexos/browser/wikipedia_llm.png. Close the browser."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://en.wikipedia.org/wiki/Large_language_model . Wait for #firstHeading (browser_wait). Run browser_run_js to extract document.title and the heading text. Scroll down by 800px (browser_scroll). Read the page and write notes/browser_evidence.md with: URL, title, heading, and a 5-bullet summary based only on the page text. Save a screenshot to .rexos/browser/wikipedia_llm.png. Close the browser."
     ```
 
 ## What to expect

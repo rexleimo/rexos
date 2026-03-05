@@ -1,11 +1,11 @@
 # 故障排查
 
-## 第一步：跑 `rexos doctor`
+## 第一步：跑 `loopforge doctor`
 
 如果你不确定哪里出了问题，建议先跑：
 
 ```bash
-rexos doctor
+loopforge doctor
 ```
 
 它会检查：`~/.rexos` 路径、`config.toml`、provider 的环境变量、（本地时）Ollama 连通性、浏览器/CDP 连通性，以及 `git` 等基础依赖。

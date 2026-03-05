@@ -3,26 +3,26 @@
 `channel_send` 只负责把消息写入 outbox。真正的投递会在你运行 dispatcher 时发生：
 
 ```bash
-rexos channel drain
+loopforge channel drain
 ```
 
 或者跑一个常驻 worker：
 
 ```bash
-rexos channel worker --interval-secs 5
+loopforge channel worker --interval-secs 5
 ```
 
 ## 示例：发送 console 通知
 
 ```bash
-rexos agent run --workspace . --prompt "使用 channel_send 入队：channel=console recipient=me subject=Hello message=Done"
-rexos channel drain
+loopforge agent run --workspace . --prompt "使用 channel_send 入队：channel=console recipient=me subject=Hello message=Done"
+loopforge channel drain
 ```
 
 ## 示例：发送到 webhook
 
 ```bash
 export REXOS_WEBHOOK_URL="https://example.com/my-webhook"
-rexos agent run --workspace . --prompt "使用 channel_send 入队：channel=webhook recipient=user1 message=hello"
-rexos channel drain
+loopforge agent run --workspace . --prompt "使用 channel_send 入队：channel=webhook recipient=user1 message=hello"
+loopforge channel drain
 ```

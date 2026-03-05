@@ -8,8 +8,7 @@ LoopForge (formerly RexOS) is a long-running agent operating system: persistent 
 
 - Public product name: **LoopForge**
 - Primary CLI command: `loopforge`
-- Compatibility names still in use: `rexos` (CLI alias), `~/.rexos` (config/data dir), and `rexleimo/rexos` (repo path)
-- Existing scripts/docs using `rexos` continue to work
+- Runtime data path remains `~/.rexos` for now.
 
 ## Documentation
 
@@ -25,7 +24,6 @@ This repository is bootstrapped with a long-running harness (`features.json`, `i
 ### Option A: Download a prebuilt binary (recommended)
 
 Download the archive for your OS from GitHub Releases, extract it, and put `loopforge` (or `loopforge.exe`) somewhere on your `PATH`.
-The compatibility command `rexos` is still included during migration.
 
 ### Option B: Build from source
 
@@ -53,7 +51,7 @@ LoopForge defaults to `ollama` at `http://127.0.0.1:11434/v1` in `~/.rexos/confi
 # 1) Start Ollama
 ollama serve
 
-# 2) Init LoopForge (compat command: rexos init)
+# 2) Init LoopForge
 loopforge init
 
 # 3) Run an agent session in a workspace directory

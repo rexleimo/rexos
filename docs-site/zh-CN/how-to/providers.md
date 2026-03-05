@@ -4,7 +4,7 @@ RexOS 从 `~/.rexos/config.toml` 读取 providers 配置，并把每个任务类
 
 ## 开箱即用的 presets
 
-执行 `rexos init` 后，`~/.rexos/config.toml` 默认已经包含常用 providers（可直接改路由使用）：
+执行 `loopforge init` 后，`~/.rexos/config.toml` 默认已经包含常用 providers（可直接改路由使用）：
 
 - 本地：`ollama`
 - OpenAI-compatible：`deepseek`、`kimi` / `kimi_cn`、`qwen` / `qwen_cn` / `qwen_sg`、`glm`、`minimax`、`nvidia`

@@ -41,18 +41,18 @@ Use this index when writing prompts/manifests that need exact tool names:
 Most examples below are written as:
 
 - a **tool call** JSON payload (the arguments object), and
-- a **prompt** you can paste into `rexos agent run`.
+- a **prompt** you can paste into `loopforge agent run`.
 
 Quick runner:
 
 === "Bash (macOS/Linux)"
     ```bash
-    rexos agent run --workspace . --prompt "<PASTE PROMPT HERE>"
+    loopforge agent run --workspace . --prompt "<PASTE PROMPT HERE>"
     ```
 
 === "PowerShell (Windows)"
     ```powershell
-    rexos agent run --workspace . --prompt "<PASTE PROMPT HERE>"
+    loopforge agent run --workspace . --prompt "<PASTE PROMPT HERE>"
     ```
 
 ## `fs_read`
@@ -635,7 +635,7 @@ These tools are implemented by the agent runtime (not by the standalone `Toolset
 - `event_publish`
 - `schedule_create` / `schedule_list` / `schedule_delete`
 - `cron_create` / `cron_list` / `cron_cancel`
-- `channel_send` (outbox enqueue; use `rexos channel drain` to deliver)
+- `channel_send` (outbox enqueue; use `loopforge channel drain` to deliver)
 - `knowledge_add_entity` / `knowledge_add_relation` / `knowledge_query`
 
 ### `agent_spawn`
@@ -935,8 +935,8 @@ Use knowledge_query for RexOS and write notes/knowledge.json with the JSON outpu
 
 Enqueue an outbound message into the outbox. Delivery happens out-of-band via the dispatcher:
 
-- run once: `rexos channel drain`
-- long-running: `rexos channel worker`
+- run once: `loopforge channel drain`
+- long-running: `loopforge channel worker`
 
 Supported channels:
 
@@ -961,7 +961,7 @@ Tool call:
 Prompt:
 
 ```text
-Use channel_send to enqueue a console message (recipient=stdout) saying \"Hello from RexOS\". Then tell me to run `rexos channel drain` to deliver it.
+Use channel_send to enqueue a console message (recipient=stdout) saying \"Hello from RexOS\". Then tell me to run `loopforge channel drain` to deliver it.
 ```
 
 ## `workflow_run`

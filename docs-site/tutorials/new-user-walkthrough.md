@@ -1,6 +1,6 @@
 # New User Walkthrough (10 minutes)
 
-This walkthrough is a “sanity check” you can run after installing RexOS. You’ll verify:
+This walkthrough is a “sanity check” you can run after installing LoopForge. You’ll verify:
 
 - your local model (Ollama) works
 - tools are sandboxed to a workspace
@@ -9,7 +9,7 @@ This walkthrough is a “sanity check” you can run after installing RexOS. You
 
 ## 0) Prerequisites
 
-- `rexos` is installed and on your `PATH`
+- `loopforge` is installed and on your `PATH`
 - Ollama is running: `ollama serve`
 - you have at least one **chat model** available:
 
@@ -35,14 +35,14 @@ default_model = "qwen3:4b" # example: pick a model you already have
 If you want a single command to run `init + config check + doctor + first task`:
 
 ```bash
-rexos onboard --workspace rexos-onboard-demo
+loopforge onboard --workspace rexos-onboard-demo
 ```
 
 Optional:
 
 ```bash
 # only run setup checks (skip first agent task)
-rexos onboard --workspace rexos-onboard-demo --skip-agent
+loopforge onboard --workspace rexos-onboard-demo --skip-agent
 ```
 
 Expected:
@@ -51,10 +51,10 @@ Expected:
 - runs one first task in the workspace (unless `--skip-agent`)
 - prints `session_id` for continuation
 
-## 1) Initialize RexOS
+## 1) Initialize LoopForge
 
 ```bash
-rexos init
+loopforge init
 ```
 
 Expected artifacts:
@@ -67,26 +67,26 @@ Expected artifacts:
 === "macOS/Linux"
     ```bash
     mkdir -p rexos-demo
-    rexos agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
     cat rexos-demo/hello.txt
     ```
 
 === "Windows (PowerShell)"
     ```powershell
     mkdir rexos-demo
-    rexos agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-demo --prompt "Create hello.txt with the word hi"
     Get-Content .\rexos-demo\hello.txt
     ```
 
 Expected:
 
 - `hello.txt` exists in the workspace and contains `hi`
-- RexOS prints a `session_id` to stderr and also persists it under `rexos-demo/.rexos/session_id`
+- LoopForge prints a `session_id` to stderr and also persists it under `rexos-demo/.rexos/session_id`
 
 ## 3) Re-run in the same workspace (memory)
 
 ```bash
-rexos agent run --workspace rexos-demo --prompt "Append a newline + bye to hello.txt"
+loopforge agent run --workspace rexos-demo --prompt "Append a newline + bye to hello.txt"
 ```
 
 Verify the file updated:
@@ -106,13 +106,13 @@ Verify the file updated:
 === "macOS/Linux"
     ```bash
     mkdir -p rexos-harness-demo
-    rexos harness init rexos-harness-demo
+    loopforge harness init rexos-harness-demo
     ```
 
 === "Windows (PowerShell)"
     ```powershell
     mkdir rexos-harness-demo
-    rexos harness init rexos-harness-demo
+    loopforge harness init rexos-harness-demo
     ```
 
 Expected files in `rexos-harness-demo/`:
@@ -125,7 +125,7 @@ Expected files in `rexos-harness-demo/`:
 Run the harness preflight (no prompt):
 
 ```bash
-rexos harness run rexos-harness-demo
+loopforge harness run rexos-harness-demo
 ```
 
 ## 5) Docs buttons (reproducibility)

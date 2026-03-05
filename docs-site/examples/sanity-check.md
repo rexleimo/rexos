@@ -7,13 +7,13 @@
 1) (Recommended) Run diagnostics:
 
 ```bash
-rexos doctor
+loopforge doctor
 ```
 
 2) Initialize once:
 
 ```bash
-rexos init
+loopforge init
 ```
 
 3) Create a scratch workspace:
@@ -26,7 +26,7 @@ cd rexos-demo
 4) Run a tiny task that writes files + runs a shell command:
 
 ```bash
-rexos agent run --workspace . --prompt "Create notes/hello.md with a short greeting. Then run shell command 'pwd && ls -la'. Save the command output to notes/env.txt. End by replying with the paths you wrote."
+loopforge agent run --workspace . --prompt "Create notes/hello.md with a short greeting. Then run shell command 'pwd && ls -la'. Save the command output to notes/env.txt. End by replying with the paths you wrote."
 ```
 
 ## What to expect

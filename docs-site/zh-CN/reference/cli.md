@@ -1,7 +1,6 @@
 # CLI 参考
 
-LoopForge 的主二进制命令是 `loopforge`。
-迁移期间保留兼容二进制 `rexos`。
+LoopForge 的二进制命令是 `loopforge`。
 
 ## 顶层命令
 
@@ -14,8 +13,6 @@ LoopForge 的主二进制命令是 `loopforge`。
 - `loopforge harness init` — 初始化 harness workspace（持久化产物 + git）
 - `loopforge harness run` — 运行一次增量 harness session
 - `loopforge daemon start` — 启动 HTTP daemon
-
-兼容说明：迁移期间，上述命令都可继续使用 `rexos` 前缀执行。
 
 ## 示例
 

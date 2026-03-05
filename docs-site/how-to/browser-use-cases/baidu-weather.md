@@ -25,14 +25,14 @@ default_model = "qwen3:4b"
     ```bash
     export REXOS_BROWSER_HEADLESS=0
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC%20%E4%BB%8A%E5%A4%A9%E5%A4%A9%E6%B0%94 . Wait for #content_left, then read the page. Extract today's weather info (conditions, temperature range, wind) from the page text. Write it to notes/weather.md. Save a screenshot to .rexos/browser/baidu_weather.png. Close the browser. If you can't find the weather, say so, but still save the screenshot."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC%20%E4%BB%8A%E5%A4%A9%E5%A4%A9%E6%B0%94 . Wait for #content_left, then read the page. Extract today's weather info (conditions, temperature range, wind) from the page text. Write it to notes/weather.md. Save a screenshot to .rexos/browser/baidu_weather.png. Close the browser. If you can't find the weather, say so, but still save the screenshot."
     ```
 
 === "PowerShell (Windows)"
     ```powershell
     $env:REXOS_BROWSER_HEADLESS = "0"
 
-    rexos agent run --workspace . --prompt "Use browser tools to open https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC%20%E4%BB%8A%E5%A4%A9%E5%A4%A9%E6%B0%94 . Wait for #content_left, then read the page. Extract today's weather info (conditions, temperature range, wind) from the page text. Write it to notes/weather.md. Save a screenshot to .rexos/browser/baidu_weather.png. Close the browser. If you can't find the weather, say so, but still save the screenshot."
+    loopforge agent run --workspace . --prompt "Use browser tools to open https://www.baidu.com/s?wd=%E5%8C%97%E4%BA%AC%20%E4%BB%8A%E5%A4%A9%E5%A4%A9%E6%B0%94 . Wait for #content_left, then read the page. Extract today's weather info (conditions, temperature range, wind) from the page text. Write it to notes/weather.md. Save a screenshot to .rexos/browser/baidu_weather.png. Close the browser. If you can't find the weather, say so, but still save the screenshot."
     ```
 
 ## What to expect

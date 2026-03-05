@@ -109,7 +109,7 @@ python3 -m playwright install chromium
 示例运行：
 
 ```bash
-rexos agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把简短总结写到 notes/example.md，并把截图保存到 .rexos/browser/example.png。"
+loopforge agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把简短总结写到 notes/example.md，并把截图保存到 .rexos/browser/example.png。"
 ```
 
 ## 安全说明

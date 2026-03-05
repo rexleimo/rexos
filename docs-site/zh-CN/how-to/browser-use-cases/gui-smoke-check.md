@@ -11,7 +11,7 @@
     mkdir -p rexos-demo && cd rexos-demo
     export REXOS_BROWSER_HEADLESS=0
 
-    rexos agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把 3 条要点写到 notes/example.md，并把截图保存到 .rexos/browser/example.png，然后关闭浏览器。"
+    loopforge agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把 3 条要点写到 notes/example.md，并把截图保存到 .rexos/browser/example.png，然后关闭浏览器。"
     ```
 
 === "PowerShell (Windows)"
@@ -20,7 +20,7 @@
     cd rexos-demo
     $env:REXOS_BROWSER_HEADLESS = "0"
 
-    rexos agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把 3 条要点写到 notes/example.md，并把截图保存到 .rexos/browser/example.png，然后关闭浏览器。"
+    loopforge agent run --workspace . --prompt "使用 browser 工具打开 https://example.com，读取页面内容，把 3 条要点写到 notes/example.md，并把截图保存到 .rexos/browser/example.png，然后关闭浏览器。"
     ```
 
 ## 方案 B：Docker GUI 沙盒（Chromium + noVNC）

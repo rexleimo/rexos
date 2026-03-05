@@ -21,7 +21,7 @@
 
 </div>
 
-> 品牌更新：对外名称已升级为 LoopForge（原 RexOS）。当前兼容保持不变：CLI 仍是 `rexos`，配置/数据目录仍是 `~/.rexos`。
+> 品牌更新：对外名称已升级为 LoopForge（原 RexOS）。CLI 命令已切换为 `loopforge`，配置/数据目录仍是 `~/.rexos`。
 
 <div class="grid cards" markdown>
 
@@ -52,12 +52,12 @@
     # 1) 启动 Ollama
     ollama serve
 
-    # 2) 初始化 LoopForge（兼容命令：rexos）
-    rexos init
+    # 2) 初始化 LoopForge
+    loopforge init
 
     # 3) 在 workspace 里跑一次 session
     mkdir -p rexos-work
-    rexos agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
     ```
 
 === "Windows (PowerShell)"
@@ -65,12 +65,12 @@
     # 1) 启动 Ollama
     ollama serve
 
-    # 2) 初始化 LoopForge（兼容命令：rexos）
-    rexos init
+    # 2) 初始化 LoopForge
+    loopforge init
 
     # 3) 在 workspace 里跑一次 session
     mkdir rexos-work
-    rexos agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
+    loopforge agent run --workspace rexos-work --prompt "Create hello.txt with the word hi"
     ```
 
 ## 工作方式

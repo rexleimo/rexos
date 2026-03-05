@@ -3,7 +3,7 @@
 目前 daemon 仅提供一个简单的健康检查接口：
 
 ```bash
-rexos daemon start --addr 127.0.0.1:8787
+loopforge daemon start --addr 127.0.0.1:8787
 curl http://127.0.0.1:8787/healthz
 ```
 

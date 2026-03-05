@@ -7,13 +7,13 @@
 1)（推荐）先跑一遍诊断：
 
 ```bash
-rexos doctor
+loopforge doctor
 ```
 
 2) 初始化一次：
 
 ```bash
-rexos init
+loopforge init
 ```
 
 3) 创建一个临时 workspace：
@@ -26,7 +26,7 @@ cd rexos-demo
 4) 跑一个最小任务：写文件 + 运行 shell 命令：
 
 ```bash
-rexos agent run --workspace . --prompt "创建 notes/hello.md（写一句问候）。然后运行 shell 命令 'pwd && ls -la'，把输出保存到 notes/env.txt。最后回复你写入了哪些路径。"
+loopforge agent run --workspace . --prompt "创建 notes/hello.md（写一句问候）。然后运行 shell 命令 'pwd && ls -la'，把输出保存到 notes/env.txt。最后回复你写入了哪些路径。"
 ```
 
 ## 预期结果

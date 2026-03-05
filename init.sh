@@ -10,6 +10,5 @@ cargo test
 echo "[loopforge] smoke: CLI help"
 cargo build -p rexos-cli
 ./target/debug/loopforge --help >/dev/null
-./target/debug/rexos --help >/dev/null
 
 echo "[loopforge] done"

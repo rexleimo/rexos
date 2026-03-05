@@ -5,7 +5,7 @@ RexOS 内置一个 HTTP daemon（目前功能最小化）。
 ## 启动
 
 ```bash
-rexos daemon start --addr 127.0.0.1:8787
+loopforge daemon start --addr 127.0.0.1:8787
 ```
 
 ## 健康检查
