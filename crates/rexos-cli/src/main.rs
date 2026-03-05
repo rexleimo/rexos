@@ -301,8 +301,29 @@ async fn main() -> anyhow::Result<()> {
             })
             .await?;
             println!("{}", doctor_report.to_text());
-            if doctor_report.summary.error > 0 {
+            let blocking_errors: Vec<&doctor::DoctorCheck> = doctor_report
+                .checks
+                .iter()
+                .filter(|c| is_onboard_blocking_doctor_error(c))
+                .collect();
+            if !blocking_errors.is_empty() {
+                eprintln!("onboard blocked by critical setup errors:");
+                for c in &blocking_errors {
+                    eprintln!("- {}: {}", c.id, c.message);
+                }
                 std::process::exit(1);
+            }
+            let non_blocking_errors = doctor_report
+                .checks
+                .iter()
+                .filter(|c| c.status == doctor::CheckStatus::Error)
+                .count()
+                .saturating_sub(blocking_errors.len());
+            if non_blocking_errors > 0 {
+                eprintln!(
+                    "onboard: continuing despite {} non-blocking doctor error(s)",
+                    non_blocking_errors
+                );
             }
 
             std::fs::create_dir_all(&workspace)
@@ -347,7 +368,7 @@ async fn main() -> anyhow::Result<()> {
             let agent = rexos::agent::AgentRuntime::new(memory, llms, router);
 
             let session_id = rexos::harness::resolve_session_id(&workspace)?;
-            let out = agent
+            let out = match agent
                 .run_session(
                     workspace.clone(),
                     &session_id,
@@ -355,7 +376,17 @@ async fn main() -> anyhow::Result<()> {
                     &prompt,
                     rexos::router::TaskKind::Coding,
                 )
-                .await?;
+                .await
+            {
+                Ok(out) => out,
+                Err(e) => {
+                    eprintln!("onboard: first agent run failed: {e}");
+                    eprintln!(
+                        "hint: run `ollama list` and set [providers.ollama].default_model in ~/.rexos/config.toml to an available chat model"
+                    );
+                    return Err(e);
+                }
+            };
             println!("{out}");
             eprintln!("[loopforge] session_id={session_id}");
             println!("onboard done (first agent run completed)");
@@ -701,6 +732,13 @@ fn select_onboard_model(preferred: &str, available: &[String]) -> Option<String>
         return Some(chat_like.clone());
     }
     Some(available[0].clone())
+}
+
+fn is_onboard_blocking_doctor_error(check: &doctor::DoctorCheck) -> bool {
+    if check.status != doctor::CheckStatus::Error {
+        return false;
+    }
+    check.id == "config.parse" || check.id.starts_with("router.")
 }
 
 async fn fetch_openai_compat_models(base_url: &str, timeout_ms: u64) -> anyhow::Result<Vec<String>> {
@@ -1148,5 +1186,39 @@ edition = "2021"
         let selected =
             select_onboard_model("llama3.2", &["nomic-embed-text:latest".to_string()]);
         assert_eq!(selected.as_deref(), Some("nomic-embed-text:latest"));
+    }
+
+    #[test]
+    fn onboard_blocks_config_and_router_errors() {
+        let config_error = doctor::DoctorCheck {
+            id: "config.parse".to_string(),
+            status: doctor::CheckStatus::Error,
+            message: "bad toml".to_string(),
+        };
+        let router_error = doctor::DoctorCheck {
+            id: "router.coding.provider".to_string(),
+            status: doctor::CheckStatus::Error,
+            message: "unknown provider".to_string(),
+        };
+
+        assert!(is_onboard_blocking_doctor_error(&config_error));
+        assert!(is_onboard_blocking_doctor_error(&router_error));
+    }
+
+    #[test]
+    fn onboard_does_not_block_non_critical_errors() {
+        let git_error = doctor::DoctorCheck {
+            id: "tools.git".to_string(),
+            status: doctor::CheckStatus::Error,
+            message: "git not found".to_string(),
+        };
+        let browser_warn = doctor::DoctorCheck {
+            id: "browser.chromium".to_string(),
+            status: doctor::CheckStatus::Warn,
+            message: "missing".to_string(),
+        };
+
+        assert!(!is_onboard_blocking_doctor_error(&git_error));
+        assert!(!is_onboard_blocking_doctor_error(&browser_warn));
     }
 }
