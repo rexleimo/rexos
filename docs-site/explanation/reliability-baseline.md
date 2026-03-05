@@ -41,6 +41,41 @@ Each line records timestamp, workspace, session id, outcome, and (for failures) 
     Get-Content $HOME/.rexos/onboard-events.jsonl -Tail 20
     ```
 
+## Daily report script
+
+LoopForge includes a daily aggregation script:
+
+- `scripts/onboard_metrics_report.py`
+
+Run it from repository root:
+
+=== "macOS/Linux"
+    ```bash
+    python3 scripts/onboard_metrics_report.py \
+      --base-dir ~/.rexos \
+      --out-dir .tmp/onboard-report \
+      --days 7 \
+      --window-hours 24
+
+    cat .tmp/onboard-report/onboard-report.md
+    ```
+
+=== "Windows (PowerShell)"
+    ```powershell
+    python scripts/onboard_metrics_report.py `
+      --base-dir $HOME/.rexos `
+      --out-dir .tmp/onboard-report `
+      --days 7 `
+      --window-hours 24
+
+    Get-Content .tmp/onboard-report/onboard-report.md
+    ```
+
+Output files:
+
+- `.tmp/onboard-report/onboard-report.json`
+- `.tmp/onboard-report/onboard-report.md`
+
 ## Suggested initial targets
 
 - First-task success rate >= 70%

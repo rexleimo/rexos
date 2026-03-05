@@ -41,6 +41,41 @@ LoopForge 会把首任务结果写入 `~/.rexos/onboard-metrics.json`：
     Get-Content $HOME/.rexos/onboard-events.jsonl -Tail 20
     ```
 
+## 日报汇总脚本
+
+LoopForge 内置了一个 onboarding 指标日报脚本：
+
+- `scripts/onboard_metrics_report.py`
+
+在仓库根目录执行：
+
+=== "macOS/Linux"
+    ```bash
+    python3 scripts/onboard_metrics_report.py \
+      --base-dir ~/.rexos \
+      --out-dir .tmp/onboard-report \
+      --days 7 \
+      --window-hours 24
+
+    cat .tmp/onboard-report/onboard-report.md
+    ```
+
+=== "Windows (PowerShell)"
+    ```powershell
+    python scripts/onboard_metrics_report.py `
+      --base-dir $HOME/.rexos `
+      --out-dir .tmp/onboard-report `
+      --days 7 `
+      --window-hours 24
+
+    Get-Content .tmp/onboard-report/onboard-report.md
+    ```
+
+输出文件：
+
+- `.tmp/onboard-report/onboard-report.json`
+- `.tmp/onboard-report/onboard-report.md`
+
 ## 初始目标建议
 
 - 首任务成功率 >= 70%

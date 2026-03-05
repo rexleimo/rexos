@@ -14,6 +14,7 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertIn("scripts.tests.test_verify_release_consistency", ci)
         self.assertIn("scripts.tests.test_provider_health_report", ci)
         self.assertIn("scripts.tests.test_package_release", ci)
+        self.assertIn("scripts.tests.test_onboard_metrics_report", ci)
 
     def test_provider_nightly_workflow_generates_health_artifacts(self):
         workflow = (
