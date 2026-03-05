@@ -1,6 +1,6 @@
 # Smoke Test (From Source)
 
-If you're hacking on RexOS itself, run smoke checks in two layers:
+If you're hacking on LoopForge itself, run smoke checks in two layers:
 
 1. Stable baseline (Wikipedia + Ollama): validates browser + LLM pipeline with low page volatility.
 2. Real-world scenario (Baidu weather + Ollama): validates a dynamic Chinese search workflow.

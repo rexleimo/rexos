@@ -1,6 +1,6 @@
 # 运行 Daemon
 
-RexOS 内置一个 HTTP daemon（目前功能最小化）。
+LoopForge 内置一个 HTTP daemon（目前功能最小化）。
 
 ## 启动
 

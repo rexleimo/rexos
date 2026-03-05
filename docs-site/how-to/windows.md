@@ -1,6 +1,6 @@
 # Windows Notes
 
-RexOS runs on Windows runners without requiring WSL.
+LoopForge runs on Windows runners without requiring WSL.
 
 ## Init scripts in harness workspaces
 
@@ -9,7 +9,7 @@ When the harness initializes a workspace, it creates:
 - `init.sh` (Unix-like smoke checks)
 - `init.ps1` (Windows smoke checks)
 
-On Windows, RexOS **prefers** `init.ps1` to avoid accidentally invoking `bash.exe` (WSL launcher) when no WSL distro is installed.
+On Windows, LoopForge **prefers** `init.ps1` to avoid accidentally invoking `bash.exe` (WSL launcher) when no WSL distro is installed.
 
 ## Tool runtime differences
 

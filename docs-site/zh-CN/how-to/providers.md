@@ -1,6 +1,6 @@
 # Providers 与路由
 
-RexOS 从 `~/.rexos/config.toml` 读取 providers 配置，并把每个任务类型（planning/coding/summary）路由到 `(provider, model)`。
+LoopForge 从 `~/.rexos/config.toml` 读取 providers 配置，并把每个任务类型（planning/coding/summary）路由到 `(provider, model)`。
 
 ## 开箱即用的 presets
 
@@ -55,7 +55,7 @@ model = "default"
 ```
 
 !!! tip "智谱 key 格式"
-    如果 `ZHIPUAI_API_KEY` 形如 `id.secret`，RexOS 会自动签发短期 JWT（无需你手动生成 token）。
+    如果 `ZHIPUAI_API_KEY` 形如 `id.secret`，LoopForge 会自动签发短期 JWT（无需你手动生成 token）。
 
 ## 示例：MiniMax（原生）
 
@@ -108,7 +108,7 @@ model = "default"
 
 ## API keys（环境变量）
 
-RexOS 会从 `api_key_env` 指定的环境变量读取 key。
+LoopForge 会从 `api_key_env` 指定的环境变量读取 key。
 
 === "Bash (macOS/Linux)"
     ```bash

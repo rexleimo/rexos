@@ -7,7 +7,7 @@
 ## 前置条件（默认：CDP）
 
 - 安装任意 Chromium 系浏览器（Chrome/Chromium/Edge）。
-- 如果 RexOS 找不到可执行文件，可以设置 `REXOS_BROWSER_CHROME_PATH`。
+- 如果 LoopForge 找不到可执行文件，可以设置 `REXOS_BROWSER_CHROME_PATH`。
 
 可选：使用 Playwright（legacy）后端：设置 `REXOS_BROWSER_BACKEND=playwright`，并按 [浏览器自动化](browser-automation.md) 的步骤安装 Playwright。
 

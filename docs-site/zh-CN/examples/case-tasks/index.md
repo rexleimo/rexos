@@ -26,5 +26,5 @@
 
 </div>
 
-!!! tip "第一次使用 RexOS？"
+!!! tip "第一次使用 LoopForge？"
     建议先跑一遍 [新人复习](../../tutorials/new-user-walkthrough.md)。

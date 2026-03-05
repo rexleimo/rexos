@@ -29,7 +29,7 @@ Without a prompt, this only creates the durable artifacts + the initial git comm
 loopforge harness init rexos-task
 ```
 
-With a prompt, RexOS runs an “initializer agent” to populate `features.json` and adjust the init script:
+With a prompt, LoopForge runs an “initializer agent” to populate `features.json` and adjust the init script:
 
 ```bash
 loopforge harness init rexos-task --prompt "Create a small CLI in this workspace that prints Hello and has a passing test suite"

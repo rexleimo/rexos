@@ -1,17 +1,17 @@
 # Concepts
 
-RexOS is designed for long-running work where “one prompt” isn’t enough.
+LoopForge is designed for long-running work where “one prompt” isn’t enough.
 
 ## Workspace
 
-Most RexOS commands operate on a **workspace directory**:
+Most LoopForge commands operate on a **workspace directory**:
 
 - tools are sandboxed to it (filesystem + shell working directory)
 - the harness stores durable artifacts there
 
 ## Memory (SQLite)
 
-RexOS persists:
+LoopForge persists:
 
 - sessions
 - chat messages
@@ -31,7 +31,7 @@ The agent can call tools such as:
 !!! note "Browser tools prerequisites"
     By default, `browser_*` uses a local Chromium-based browser (Chrome/Chromium/Edge) via **CDP**.
 
-    If RexOS can’t find a browser executable, set `REXOS_BROWSER_CHROME_PATH`.
+    If LoopForge can’t find a browser executable, set `REXOS_BROWSER_CHROME_PATH`.
 
     Optional legacy backend: set `REXOS_BROWSER_BACKEND=playwright` and install Python + Playwright:
 
@@ -42,7 +42,7 @@ The agent can call tools such as:
 
 ## Model routing
 
-RexOS classifies runs into a task kind:
+LoopForge classifies runs into a task kind:
 
 - planning
 - coding

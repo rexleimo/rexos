@@ -3,7 +3,7 @@
 This page is intentionally short and copy/paste-friendly.
 If you are blocked, run `loopforge doctor` first.
 
-## 1) I installed RexOS. What is the minimum first run?
+## 1) I installed LoopForge. What is the minimum first run?
 
 ```bash
 ollama serve

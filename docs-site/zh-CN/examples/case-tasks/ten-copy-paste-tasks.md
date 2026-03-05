@@ -14,7 +14,7 @@ mkdir -p my-work
 ## 1）创建文件
 
 ```bash
-loopforge agent run --workspace my-work --prompt "Create notes/hello.md with exactly: Hello RexOS"
+loopforge agent run --workspace my-work --prompt "Create notes/hello.md with exactly: Hello LoopForge"
 ```
 
 ## 2）10 分钟仓库上手

@@ -25,9 +25,9 @@
 
 ## 方案 B：Docker GUI 沙盒（Chromium + noVNC）
 
-如果你不想在本机安装 Chrome/Chromium，可以用 Docker 跑一个带 GUI 的 Chromium（沙盒），然后 RexOS 通过 CDP 附加上去。
+如果你不想在本机安装 Chrome/Chromium，可以用 Docker 跑一个带 GUI 的 Chromium（沙盒），然后 LoopForge 通过 CDP 附加上去。
 
-1) 启动容器（在 RexOS repo 根目录执行）：
+1) 启动容器（在 LoopForge repo 根目录执行）：
 
 ```bash
 docker compose -f docker/sandbox-browser/compose.yml up --build
@@ -38,7 +38,7 @@ docker compose -f docker/sandbox-browser/compose.yml up --build
 - URL：`http://127.0.0.1:6080/vnc.html`
 - 密码：`rexos`（见 `docker/sandbox-browser/compose.yml`）
 
-3) 在另一个终端里，把 RexOS 的浏览器工具指向沙盒的 CDP：
+3) 在另一个终端里，把 LoopForge 的浏览器工具指向沙盒的 CDP：
 
 === "Bash (macOS/Linux)"
     ```bash

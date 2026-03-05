@@ -1,6 +1,6 @@
 # Security & Sandboxing
 
-RexOS is built around running LLM-driven tool calls with guardrails.
+LoopForge is built around running LLM-driven tool calls with guardrails.
 
 ## Workspace sandbox
 
@@ -28,7 +28,7 @@ For local testing you can explicitly allow private targets with `allow_private=t
 
 ## Browser tools
 
-RexOS can run a headless browser via **CDP** by default (no Python), and can also use a legacy Playwright bridge backend.
+LoopForge can run a headless browser via **CDP** by default (no Python), and can also use a legacy Playwright bridge backend.
 
 - `browser_navigate` / `browser_click` / `browser_type` / `browser_press_key` / `browser_wait_for` / `browser_read_page` / `browser_screenshot` / `browser_close`
 
@@ -40,4 +40,4 @@ Security notes:
 
 ## Future: approvals
 
-RexOS has the structure to add “approval hooks” for higher-risk actions (network writes, destructive commands, etc.). This is intentionally conservative by default.
+LoopForge has the structure to add “approval hooks” for higher-risk actions (network writes, destructive commands, etc.). This is intentionally conservative by default.

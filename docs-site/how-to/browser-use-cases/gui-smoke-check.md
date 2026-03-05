@@ -27,7 +27,7 @@ See also: [Browser Automation (CDP)](../browser-automation.md).
 
 If you don’t want to install Chrome/Chromium locally, run a sandboxed GUI Chromium in Docker and attach via CDP.
 
-1) Start the sandbox container (from the RexOS repo root):
+1) Start the sandbox container (from the LoopForge repo root):
 
 ```bash
 scripts/browser_sandbox_up.sh up --build
@@ -38,7 +38,7 @@ scripts/browser_sandbox_up.sh up --build
 - URL: `http://127.0.0.1:6080/vnc.html`
 - Password: `rexos` (from `docker/sandbox-browser/compose.yml`)
 
-3) In another terminal, point RexOS browser tools at the sandbox CDP:
+3) In another terminal, point LoopForge browser tools at the sandbox CDP:
 
 === "Bash (macOS/Linux)"
     ```bash

@@ -1,6 +1,6 @@
 # Run the Daemon
 
-RexOS includes an HTTP daemon (currently minimal).
+LoopForge includes an HTTP daemon (currently minimal).
 
 ## Start
 

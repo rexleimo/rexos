@@ -6,22 +6,22 @@
 
 ## 默认后端：CDP（无需 Python）
 
-RexOS 默认会启动本机的 Chromium 系浏览器（Chrome / Chromium / Edge），并通过 **Chrome DevTools Protocol（CDP）** 进行自动化控制。
+LoopForge 默认会启动本机的 Chromium 系浏览器（Chrome / Chromium / Edge），并通过 **Chrome DevTools Protocol（CDP）** 进行自动化控制。
 
 ### 前置条件
 
 - 安装任意 Chromium 系浏览器（Chrome/Chromium/Edge）。
-- 如果 RexOS 找不到可执行文件，可以设置 `REXOS_BROWSER_CHROME_PATH` 指向浏览器可执行文件路径。
+- 如果 LoopForge 找不到可执行文件，可以设置 `REXOS_BROWSER_CHROME_PATH` 指向浏览器可执行文件路径。
 
 ### 远程 CDP（可选）
 
-如果你已经有一个带远程调试端口的浏览器实例（或你在 Docker 里启动了一个），可以让 RexOS 直接连接：
+如果你已经有一个带远程调试端口的浏览器实例（或你在 Docker 里启动了一个），可以让 LoopForge 直接连接：
 
 ```bash
 export REXOS_BROWSER_CDP_HTTP="http://127.0.0.1:9222"
 ```
 
-默认情况下，RexOS 只允许连接 **loopback** 的 CDP endpoint。若要连接非 loopback 的 CDP URL，你必须显式开启：
+默认情况下，LoopForge 只允许连接 **loopback** 的 CDP endpoint。若要连接非 loopback 的 CDP URL，你必须显式开启：
 
 ```bash
 export REXOS_BROWSER_CDP_ALLOW_REMOTE=1
@@ -31,7 +31,7 @@ export REXOS_BROWSER_CDP_ALLOW_REMOTE=1
 
 ## Headless / 有界面
 
-RexOS 默认以 **headless** 模式启动浏览器。
+LoopForge 默认以 **headless** 模式启动浏览器。
 
 如果你想看到浏览器窗口（本地调试 / 演示），在第一次 `browser_navigate` 时设置 `headless=false`：
 
@@ -97,7 +97,7 @@ python3 -m playwright install chromium
 ## Prompt 模板（可直接复制）
 
 ```text
-你可以使用 RexOS 的 browser 工具（browser_navigate/back/scroll/click/type/press_key/wait/wait_for/read_page/run_js/screenshot/close）。
+你可以使用 LoopForge 的 browser 工具（browser_navigate/back/scroll/click/type/press_key/wait/wait_for/read_page/run_js/screenshot/close）。
 
 规则：
 - navigate/click/type/press_key 之后尽快 browser_read_page；如果页面异步更新，先 browser_wait_for 再 read_page。

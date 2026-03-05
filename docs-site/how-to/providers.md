@@ -1,6 +1,6 @@
 # Providers & Routing
 
-RexOS loads provider config from `~/.rexos/config.toml` and routes each task kind (planning/coding/summary) to a `(provider, model)` pair.
+LoopForge loads provider config from `~/.rexos/config.toml` and routes each task kind (planning/coding/summary) to a `(provider, model)` pair.
 
 ## Built-in presets (out of the box)
 
@@ -55,7 +55,7 @@ model = "default"
 ```
 
 !!! tip "Zhipu auth format"
-    If `ZHIPUAI_API_KEY` looks like `id.secret`, RexOS will sign a short-lived JWT automatically.
+    If `ZHIPUAI_API_KEY` looks like `id.secret`, LoopForge will sign a short-lived JWT automatically.
 
 ## Example: MiniMax (native)
 
@@ -106,7 +106,7 @@ model = "default"
 
 ## API keys (env vars)
 
-RexOS reads provider keys from the env var referenced by `api_key_env`.
+LoopForge reads provider keys from the env var referenced by `api_key_env`.
 
 ## Optional smoke tests (real providers)
 

@@ -26,5 +26,5 @@ Pick a scenario and run it locally. Each page is designed to be **copy‑paste f
 
 </div>
 
-!!! tip "New to RexOS?"
+!!! tip "New to LoopForge?"
     Start with the [New User Walkthrough](../../tutorials/new-user-walkthrough.md).

@@ -1,6 +1,6 @@
 # 什么是 LoopForge？（原 RexOS）
 
-LoopForge 是 RexOS 的对外新品牌名。
+LoopForge 是 LoopForge 的对外新品牌名。
 这次改名的目标是：更好记、更易传播、更利于在开发者社区建立心智。
 
 ## 一句话定位

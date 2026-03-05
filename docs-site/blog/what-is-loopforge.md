@@ -1,6 +1,6 @@
-# What Is LoopForge? (Formerly RexOS)
+# What Is LoopForge? (Formerly LoopForge)
 
-LoopForge is the new public brand of the product previously known as RexOS.
+LoopForge is the new public brand of the product previously known as LoopForge.
 We renamed to make the product easier to remember and easier to spread in builder communities.
 
 ## One-line positioning

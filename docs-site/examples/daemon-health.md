@@ -7,4 +7,4 @@ loopforge daemon start --addr 127.0.0.1:8787
 curl http://127.0.0.1:8787/healthz
 ```
 
-Use it for container readiness / supervision, and keep the rest of RexOS logic in the CLI for now.
+Use it for container readiness / supervision, and keep the rest of LoopForge logic in the CLI for now.

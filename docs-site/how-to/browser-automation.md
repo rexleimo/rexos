@@ -6,22 +6,22 @@ For copy-paste recipes, see: [Browser Use Cases](browser-use-cases.md).
 
 ## Default backend: CDP (no Python)
 
-RexOS launches a local Chromium-based browser (Chrome / Chromium / Edge) and drives it via **Chrome DevTools Protocol (CDP)**.
+LoopForge launches a local Chromium-based browser (Chrome / Chromium / Edge) and drives it via **Chrome DevTools Protocol (CDP)**.
 
 ### Prerequisites
 
 - Install a Chromium-based browser (Chrome/Chromium/Edge).
-- If RexOS can’t find it, set `REXOS_BROWSER_CHROME_PATH` to the browser executable path.
+- If LoopForge can’t find it, set `REXOS_BROWSER_CHROME_PATH` to the browser executable path.
 
 ### Remote CDP (optional)
 
-If you already have a browser running with a remote debugging port (or you run one in Docker), point RexOS at it:
+If you already have a browser running with a remote debugging port (or you run one in Docker), point LoopForge at it:
 
 ```bash
 export REXOS_BROWSER_CDP_HTTP="http://127.0.0.1:9222"
 ```
 
-By default, RexOS only allows **loopback** CDP endpoints. To attach to a non-loopback CDP URL, you must explicitly opt in:
+By default, LoopForge only allows **loopback** CDP endpoints. To attach to a non-loopback CDP URL, you must explicitly opt in:
 
 ```bash
 export REXOS_BROWSER_CDP_ALLOW_REMOTE=1
@@ -37,7 +37,7 @@ Then follow: [GUI Smoke Check](browser-use-cases/gui-smoke-check.md).
 
 ## Headless vs GUI
 
-By default, RexOS launches the browser in **headless** mode.
+By default, LoopForge launches the browser in **headless** mode.
 
 To show the browser window (local debugging / demos), set `headless=false` on the first `browser_navigate` call:
 
@@ -105,7 +105,7 @@ If a CSS selector fails, `browser_click` will try a **best-effort visible-text f
 Use this as a starting point for agent prompts:
 
 ```text
-You may use RexOS browser tools (browser_navigate/back/scroll/click/type/press_key/wait/wait_for/read_page/run_js/screenshot/close).
+You may use LoopForge browser tools (browser_navigate/back/scroll/click/type/press_key/wait/wait_for/read_page/run_js/screenshot/close).
 
 Rules:
 - Always call browser_read_page after navigate/click/type/press_key to verify page state before the next step.

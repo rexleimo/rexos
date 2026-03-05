@@ -1,6 +1,6 @@
 # Tools Reference
 
-RexOS exposes a small core toolset, plus a compatibility tool surface (aliases + reserved names) so you can reuse prompts/manifests written for common agent tool conventions.
+LoopForge exposes a small core toolset, plus a compatibility tool surface (aliases + reserved names) so you can reuse prompts/manifests written for common agent tool conventions.
 
 ## Tool Index (60+)
 
@@ -88,7 +88,7 @@ Same sandboxing rules as `fs_read`.
 Tool call:
 
 ```json
-{ "path": "notes/hello.md", "content": "Hello from RexOS\\n" }
+{ "path": "notes/hello.md", "content": "Hello from LoopForge\\n" }
 ```
 
 Prompt:
@@ -104,7 +104,7 @@ Run a shell command inside the workspace:
 - Unix: runs via `bash -c`
 - Windows: runs via PowerShell
 
-RexOS enforces a timeout and runs with a minimal environment.
+LoopForge enforces a timeout and runs with a minimal environment.
 
 ### Example
 
@@ -126,7 +126,7 @@ Fetch an HTTP(S) URL and return a small response body.
 
 By default it rejects loopback/private IPs (basic SSRF protection). For local testing you can set `allow_private=true`.
 
-If `truncated=true`, RexOS returns a **head+tail** snippet with the marker `[...] middle omitted [...]` and includes both `bytes` (returned) and `total_bytes` (original).
+If `truncated=true`, LoopForge returns a **head+tail** snippet with the marker `[...] middle omitted [...]` and includes both `bytes` (returned) and `total_bytes` (original).
 
 ### Example
 
@@ -190,7 +190,7 @@ Notes:
 - `browser_navigate` is SSRF-protected by default (denies loopback/private targets unless `allow_private=true`).
 - Headless by default. To show a GUI window, pass `headless=false` to `browser_navigate` (or set `REXOS_BROWSER_HEADLESS=0` as a default).
 - `browser_screenshot` writes a PNG to a workspace-relative path (no absolute paths, no `..`, no symlink escapes).
-- Default backend is CDP and requires a local Chromium-based browser (Chrome/Chromium/Edge). If RexOS can’t find it, set `REXOS_BROWSER_CHROME_PATH`.
+- Default backend is CDP and requires a local Chromium-based browser (Chrome/Chromium/Edge). If LoopForge can’t find it, set `REXOS_BROWSER_CHROME_PATH`.
 - Optional remote CDP: set `REXOS_BROWSER_CDP_HTTP` (example: `http://127.0.0.1:9222`).
 - Optional remote tab mode: set `REXOS_BROWSER_CDP_TAB_MODE=reuse` to skip `/json/new` and reuse an existing page target (default: `new`).
 - Loopback CDP HTTP (`127.0.0.1` / `localhost`) bypasses proxy settings to avoid corporate proxy misconfig breaking local automation.
@@ -403,7 +403,7 @@ At the end of any browser workflow, call browser_close to clean up.
 
 ## Compatibility aliases
 
-These tool names exist for compatibility and map to RexOS built-ins:
+These tool names exist for compatibility and map to LoopForge built-ins:
 
 - `file_read` → `fs_read`
 - `file_write` → `fs_write`
@@ -490,13 +490,13 @@ Use apply_patch to add notes/patched.txt with one line of text, then fs_read it 
 Tool call:
 
 ```json
-{ "query": "RexOS harness long-running agents", "max_results": 5 }
+{ "query": "LoopForge harness long-running agents", "max_results": 5 }
 ```
 
 Prompt:
 
 ```text
-Use web_search to find 5 results for \"RexOS harness long-running agents\". Write notes/search.md with titles + URLs.
+Use web_search to find 5 results for \"LoopForge harness long-running agents\". Write notes/search.md with titles + URLs.
 ```
 
 ### `memory_store`
@@ -551,7 +551,7 @@ Use image_analyze on .rexos/browser/page.png and write notes/image_meta.json wit
 
 Return environment metadata as JSON (`os`, `arch`, `tz`, `lang`).
 
-RexOS does not perform IP-based geolocation.
+LoopForge does not perform IP-based geolocation.
 
 ### Example
 
@@ -616,7 +616,7 @@ For now this tool outputs **SVG** to a workspace-relative `path` (use a `.svg` f
 Tool call:
 
 ```json
-{ "prompt": "A simple SVG badge that says RexOS", "path": "assets/rexos_badge.svg" }
+{ "prompt": "A simple SVG badge that says LoopForge", "path": "assets/rexos_badge.svg" }
 ```
 
 Prompt:
@@ -885,13 +885,13 @@ Add an entity record to the knowledge store.
 Tool call:
 
 ```json
-{ "name": "RexOS", "entity_type": "project", "properties": { "repo": "rexleimo/rexos" } }
+{ "name": "LoopForge", "entity_type": "project", "properties": { "repo": "rexleimo/rexos" } }
 ```
 
 Prompt:
 
 ```text
-Use knowledge_add_entity to add an entity for RexOS, then call knowledge_query for \"RexOS\" and write notes/knowledge.json with the result.
+Use knowledge_add_entity to add an entity for LoopForge, then call knowledge_query for \"LoopForge\" and write notes/knowledge.json with the result.
 ```
 
 ### `knowledge_add_relation`
@@ -902,7 +902,7 @@ Tool call:
 
 ```json
 {
-  "source": "RexOS",
+  "source": "LoopForge",
   "relation": "inspires",
   "target": "meos",
   "properties": { "confidence": 0.8 }
@@ -912,7 +912,7 @@ Tool call:
 Prompt:
 
 ```text
-Use knowledge_add_relation to relate RexOS -> meos, then query for RexOS.
+Use knowledge_add_relation to relate LoopForge -> meos, then query for LoopForge.
 ```
 
 ### `knowledge_query`
@@ -922,13 +922,13 @@ Search entities/relations (best-effort substring query).
 Tool call:
 
 ```json
-{ "query": "RexOS" }
+{ "query": "LoopForge" }
 ```
 
 Prompt:
 
 ```text
-Use knowledge_query for RexOS and write notes/knowledge.json with the JSON output.
+Use knowledge_query for LoopForge and write notes/knowledge.json with the JSON output.
 ```
 
 ## `channel_send`
@@ -955,13 +955,13 @@ Arguments (tool call JSON):
 Tool call:
 
 ```json
-{ "channel": "console", "recipient": "stdout", "subject": "demo", "message": "Hello from RexOS" }
+{ "channel": "console", "recipient": "stdout", "subject": "demo", "message": "Hello from LoopForge" }
 ```
 
 Prompt:
 
 ```text
-Use channel_send to enqueue a console message (recipient=stdout) saying \"Hello from RexOS\". Then tell me to run `loopforge channel drain` to deliver it.
+Use channel_send to enqueue a console message (recipient=stdout) saying \"Hello from LoopForge\". Then tell me to run `loopforge channel drain` to deliver it.
 ```
 
 ## `workflow_run`
@@ -1033,13 +1033,13 @@ Use hand_list and write notes/hands.json with the output. Pick one available han
 Tool call:
 
 ```json
-{ "hand_id": "researcher", "config": { "topic": "RexOS" } }
+{ "hand_id": "researcher", "config": { "topic": "LoopForge" } }
 ```
 
 Prompt:
 
 ```text
-Use hand_activate to activate the researcher hand. Then use agent_send with the returned agent_id to ask it to do a web_search for \"RexOS\" and summarize 3 bullets.
+Use hand_activate to activate the researcher hand. Then use agent_send with the returned agent_id to ask it to do a web_search for \"LoopForge\" and summarize 3 bullets.
 ```
 
 ### `hand_status`
@@ -1072,7 +1072,7 @@ Use hand_activate to start a hand, then hand_deactivate using the returned insta
 
 ## `a2a_*`
 
-A2A tools let RexOS talk to external A2A-compatible agents:
+A2A tools let LoopForge talk to external A2A-compatible agents:
 
 - `a2a_discover`: fetches the agent card at `/.well-known/agent.json`
 - `a2a_send`: sends a JSON-RPC `tasks/send` request to an A2A endpoint URL
@@ -1081,7 +1081,7 @@ Both are SSRF-protected by default; for local testing you can set `allow_private
 
 ### `a2a_discover`
 
-Fetch an A2A agent card (RexOS always requests `/.well-known/agent.json` on the given host).
+Fetch an A2A agent card (LoopForge always requests `/.well-known/agent.json` on the given host).
 
 Tool call:
 
@@ -1142,13 +1142,13 @@ MVP behavior: writes a short `.wav` file to the workspace (placeholder for real 
 Tool call:
 
 ```json
-{ "text": "Hello from RexOS", "path": ".rexos/audio/tts.wav" }
+{ "text": "Hello from LoopForge", "path": ".rexos/audio/tts.wav" }
 ```
 
 Prompt:
 
 ```text
-Use text_to_speech to write .rexos/audio/tts.wav saying \"Hello from RexOS\". Then use media_describe on that file and write notes/tts_meta.json.
+Use text_to_speech to write .rexos/audio/tts.wav saying \"Hello from LoopForge\". Then use media_describe on that file and write notes/tts_meta.json.
 ```
 
 ## `docker_exec`
@@ -1270,7 +1270,7 @@ Scripts, event handlers (e.g. `onclick=`), and `javascript:` URLs are rejected.
 Tool call:
 
 ```json
-{ "title": "Demo report", "html": "<h1>Hello</h1><p>Generated by RexOS.</p>" }
+{ "title": "Demo report", "html": "<h1>Hello</h1><p>Generated by LoopForge.</p>" }
 ```
 
 Prompt:

@@ -1,6 +1,6 @@
 # Smoke test（从源码）
 
-如果你在开发 RexOS 本身，建议按两层跑 smoke：
+如果你在开发 LoopForge 本身，建议按两层跑 smoke：
 
 1. 稳定基线（Wikipedia + Ollama）：优先验证浏览器 + LLM 链路是否通畅。
 2. 真实场景（百度天气 + Ollama）：验证动态站点场景。

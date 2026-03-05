@@ -1,6 +1,6 @@
 # Harness 配方（Checkpoints）
 
-当你希望 RexOS “持续迭代直到 verifier 通过”，并且希望失败可回滚、过程可 checkpoint 时，用 Harness 最合适。
+当你希望 LoopForge “持续迭代直到 verifier 通过”，并且希望失败可回滚、过程可 checkpoint 时，用 Harness 最合适。
 
 ## 1) 用 Harness 把“修到测试通过”变成可持续推进
 
@@ -39,7 +39,7 @@ loopforge harness run . --prompt "继续。优先处理 verifier 输出里最先
   - `features.json`（checklist）
   - `rexos-progress.md`（只追加的进度日志）
   - `init.sh` + `init.ps1`（你的 verifier 脚本）
-- 当 verifier 通过时，RexOS 会创建 **checkpoint git commit**。
+- 当 verifier 通过时，LoopForge 会创建 **checkpoint git commit**。
 
 !!! tip "回滚方式与普通 git 一样"
     例如 `git reset --hard HEAD~1` 回退到上一个 checkpoint，然后继续 `loopforge harness run`。

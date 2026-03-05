@@ -32,7 +32,7 @@ Expected: `200` (or at least not the GitHub “Site not found” 404).
 
 ## Ollama: connection refused / model not found
 
-RexOS defaults to Ollama at `http://127.0.0.1:11434/v1`.
+LoopForge defaults to Ollama at `http://127.0.0.1:11434/v1`.
 
 1) Make sure Ollama is running:
 
@@ -56,7 +56,7 @@ ollama pull llama3.2
 
 ## Windows: `bash`/WSL issues
 
-RexOS supports Windows natively (PowerShell). If you see errors like:
+LoopForge supports Windows natively (PowerShell). If you see errors like:
 
 - `Windows Subsystem for Linux has no installed distributions`
 
@@ -78,4 +78,4 @@ Example (Zhipu GLM native):
 export ZHIPUAI_API_KEY="id.secret"
 ```
 
-If the key looks like `id.secret`, RexOS will sign a short-lived JWT automatically.
+If the key looks like `id.secret`, LoopForge will sign a short-lived JWT automatically.

@@ -1,6 +1,6 @@
 # Harness Recipes (Checkpoints)
 
-Use the harness when you want RexOS to iterate until your verifier passes, while staying rollback-friendly.
+Use the harness when you want LoopForge to iterate until your verifier passes, while staying rollback-friendly.
 
 ## 1) Fix a failing test suite with harness checkpoints
 
@@ -39,7 +39,7 @@ loopforge harness run . --prompt "Continue. Focus on the next failing verifier o
   - `features.json` (checklist)
   - `rexos-progress.md` (append-only progress log)
   - `init.sh` + `init.ps1` (your verifier scripts)
-- When your verifier passes, RexOS makes a **checkpoint git commit**.
+- When your verifier passes, LoopForge makes a **checkpoint git commit**.
 
 !!! tip "Rollback-friendly"
     If a checkpoint is bad, use git normally (e.g. `git reset --hard HEAD~1`) and run `loopforge harness run` again.

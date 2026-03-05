@@ -14,7 +14,7 @@ mkdir -p my-work
 ## 1) Create a file
 
 ```bash
-loopforge agent run --workspace my-work --prompt "Create notes/hello.md with exactly: Hello RexOS"
+loopforge agent run --workspace my-work --prompt "Create notes/hello.md with exactly: Hello LoopForge"
 ```
 
 ## 2) Repo onboarding in 10 minutes
