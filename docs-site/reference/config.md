@@ -1,6 +1,6 @@
 # Config Reference (`~/.rexos/config.toml`)
 
-RexOS stores configuration in `~/.rexos/config.toml`.
+LoopForge stores configuration in `~/.rexos/config.toml` (path kept for compatibility).
 
 ## Providers
 
@@ -41,8 +41,7 @@ model = "default"
 
 ## Built-in presets
 
-RexOS includes common provider presets (names may evolve):
+LoopForge includes common provider presets (names may evolve):
 
 - OpenAI-compatible: `deepseek`, `kimi`, `qwen`, `glm`, `minimax`
 - Provider-native: `glm_native`, `minimax_native`, `qwen_native`
-

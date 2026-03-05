@@ -7,7 +7,8 @@ LoopForge (formerly RexOS) is a long-running agent operating system: persistent 
 ## Brand update
 
 - Public product name: **LoopForge**
-- Compatibility names still in use: `rexos` (CLI), `~/.rexos` (config/data dir), and `rexleimo/rexos` (repo path)
+- Primary CLI command: `loopforge`
+- Compatibility names still in use: `rexos` (CLI alias), `~/.rexos` (config/data dir), and `rexleimo/rexos` (repo path)
 - Existing scripts/docs using `rexos` continue to work
 
 ## Documentation
@@ -23,18 +24,19 @@ This repository is bootstrapped with a long-running harness (`features.json`, `i
 
 ### Option A: Download a prebuilt binary (recommended)
 
-Download the archive for your OS from GitHub Releases, extract it, and put `rexos` (or `rexos.exe`) somewhere on your `PATH`.
+Download the archive for your OS from GitHub Releases, extract it, and put `loopforge` (or `loopforge.exe`) somewhere on your `PATH`.
+The compatibility command `rexos` is still included during migration.
 
 ### Option B: Build from source
 
 ```bash
 # Install to ~/.cargo/bin (recommended for dev)
 cargo install --path crates/rexos-cli --locked
-rexos --help
+loopforge --help
 
 # Or build a local binary
 cargo build --release -p rexos-cli
-./target/release/rexos --help
+./target/release/loopforge --help
 ```
 
 ## Quick start (dev)
@@ -51,12 +53,12 @@ LoopForge defaults to `ollama` at `http://127.0.0.1:11434/v1` in `~/.rexos/confi
 # 1) Start Ollama
 ollama serve
 
-# 2) Init LoopForge (compat command: rexos)
-rexos init
+# 2) Init LoopForge (compat command: rexos init)
+loopforge init
 
 # 3) Run an agent session in a workspace directory
 mkdir -p /tmp/rexos-work
-rexos agent run --workspace /tmp/rexos-work --prompt "Create hello.txt with the word hi"
+loopforge agent run --workspace /tmp/rexos-work --prompt "Create hello.txt with the word hi"
 ```
 
 To run the optional Ollama smoke test: `REXOS_OLLAMA_MODEL=<your-model> cargo test -p rexos -- --ignored`.
