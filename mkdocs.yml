@@ -116,7 +116,6 @@ plugins:
             Blog: 博客
             "What Is LoopForge?": 什么是 LoopForge？
             LoopForge vs OpenFang/OpenClaw: LoopForge 与 OpenFang/OpenClaw
-            "OpenClaw Trend: LoopForge Optimization + X Playbook": OpenClaw 风口：LoopForge 优化与 X 推广作战页
             Editorial Calendar: 内容发布日历
   - search:
       lang:
@@ -212,7 +211,6 @@ nav:
       - Index: blog/index.md
       - What Is LoopForge?: blog/what-is-loopforge.md
       - LoopForge vs OpenFang/OpenClaw: blog/rexos-vs-openfang-openclaw.md
-      - "OpenClaw Trend: LoopForge Optimization + X Playbook": blog/openclaw-trend-x-playbook.md
       - Editorial Calendar: blog/editorial-calendar.md
   - Reference:
       - CLI: reference/cli.md

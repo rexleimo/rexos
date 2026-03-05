@@ -14,7 +14,3 @@ OpenClaw owns multi-channel assistant breadth. LoopForge focuses on code deliver
 Shipping with AI should be measurable. We now log onboarding outcomes and failure categories by default, then roll up daily reports for reliability baselines. This is the kind of evidence teams can act on. #LoopForge #DevRel
 ---
 Trend hook: "assistant experience is hot". Counter-position: "engineering reliability is scarce". If you care about passing verifiers and preserving artifact trails, start from LoopForge, not from a generic chat shell. #OpenClaw #AIInfra
----
-Before posting to X, lint your copy in repo:
-`python3 scripts/x_post_lint.py --file docs/marketing/openclaw-trend-x-posts.en.txt --limit 280 --warn-at 260`
-No surprises at publish time.

@@ -6,7 +6,6 @@ Practical notes for builders choosing an Agent OS and scaling from local prototy
 
 - [What Is LoopForge? (Formerly LoopForge)](what-is-loopforge.md)
 - [LoopForge vs OpenFang/OpenClaw (Builder View)](rexos-vs-openfang-openclaw.md)
-- [OpenClaw Trend: LoopForge Optimization + X Playbook](openclaw-trend-x-playbook.md)
 - [Editorial Calendar](editorial-calendar.md)
 
 ## Suggested reading order
@@ -15,5 +14,4 @@ Practical notes for builders choosing an Agent OS and scaling from local prototy
 2. First successful run: [New User Walkthrough](../tutorials/new-user-walkthrough.md)
 3. Practical templates: [10 Copy/Paste Tasks](../examples/case-tasks/ten-copy-paste-tasks.md)
 4. Positioning and alternatives: [LoopForge vs OpenFang/OpenClaw (Builder View)](rexos-vs-openfang-openclaw.md)
-5. This week's growth playbook: [OpenClaw Trend: LoopForge Optimization + X Playbook](openclaw-trend-x-playbook.md)
-6. Publishing rhythm: [Editorial Calendar](editorial-calendar.md)
+5. Publishing rhythm: [Editorial Calendar](editorial-calendar.md)
