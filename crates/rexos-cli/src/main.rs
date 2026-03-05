@@ -34,7 +34,7 @@ struct ReleaseCheckReport {
 }
 
 #[derive(Debug, Parser)]
-#[command(name = "rexos")]
+#[command(name = "loopforge")]
 #[command(about = "RexOS: long-running agent operating system", long_about = None)]
 struct Cli {
     #[command(subcommand)]
@@ -959,6 +959,21 @@ fn load_acp_checkpoints(
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn cli_primary_name_is_loopforge() {
+        use clap::CommandFactory;
+        assert_eq!(Cli::command().get_name(), "loopforge");
+    }
+
+    #[test]
+    fn cli_parses_config_validate_with_loopforge_binary_name() {
+        let parsed = Cli::try_parse_from(["loopforge", "config", "validate"]);
+        assert!(
+            parsed.is_ok(),
+            "expected `loopforge config validate` to parse, got: {parsed:?}"
+        );
+    }
 
     #[test]
     fn cli_parses_config_validate_subcommand() {
