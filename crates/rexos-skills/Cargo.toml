@@ -1,0 +1,15 @@
+[package]
+name = "rexos-skills"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+toml.workspace = true
+semver.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
