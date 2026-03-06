@@ -106,6 +106,36 @@ def summarize_daily(events: list[dict[str, object]], days: int, now_ms: int) -> 
     return out
 
 
+def recommendation_for_category(category: str) -> str:
+    mapping = {
+        "model_unavailable": "Run `ollama list` and set a chat model that exists locally.",
+        "provider_unreachable": "Start Ollama with `ollama serve` or verify the provider base URL and network connectivity.",
+        "tool_runtime_error": "Retry with a narrower first task or a stronger model, then capture the failing tool call.",
+        "sandbox_restriction": "Check sandbox and filesystem permissions, then rerun inside an allowed workspace.",
+        "unknown": "Review the onboard report/error logs and rerun `loopforge doctor` for fresh guidance.",
+    }
+    return mapping.get(category, mapping["unknown"])
+
+
+def build_recommendations(
+    recent_window: dict[str, object], snapshot: dict[str, object]
+) -> list[dict[str, object]]:
+    source = recent_window.get("failure_by_category") or snapshot.get("failure_by_category") or {}
+    if not isinstance(source, dict):
+        return []
+
+    ranked: list[dict[str, object]] = []
+    for category, count in sorted(source.items(), key=lambda kv: (-int(kv[1]), str(kv[0]))):
+        ranked.append(
+            {
+                "category": str(category),
+                "count": int(count),
+                "suggestion": recommendation_for_category(str(category)),
+            }
+        )
+    return ranked
+
+
 def summarize_recent_window(
     events: list[dict[str, object]], window_hours: int, now_ms: int
 ) -> dict[str, object]:
@@ -146,18 +176,22 @@ def build_report(base_dir: Path, days: int, window_hours: int, now_ms: int | Non
     success_total = int(metrics.get("first_task_success", 0) or 0)
     failed_total = int(metrics.get("first_task_failed", 0) or 0)
 
+    metrics_snapshot = {
+        "attempted_first_task": attempted_total,
+        "first_task_success": success_total,
+        "first_task_failed": failed_total,
+        "success_rate": _safe_rate(success_total, attempted_total),
+        "failure_by_category": metrics.get("failure_by_category", {}),
+        "updated_at_ms": int(metrics.get("updated_at_ms", 0) or 0),
+    }
+    recent_window = summarize_recent_window(events, window_hours=window_hours, now_ms=now_ms)
+
     report = {
         "generated_at": _iso_now(now_ms),
         "base_dir": str(base_dir),
-        "metrics_snapshot": {
-            "attempted_first_task": attempted_total,
-            "first_task_success": success_total,
-            "first_task_failed": failed_total,
-            "success_rate": _safe_rate(success_total, attempted_total),
-            "failure_by_category": metrics.get("failure_by_category", {}),
-            "updated_at_ms": int(metrics.get("updated_at_ms", 0) or 0),
-        },
-        "recent_window": summarize_recent_window(events, window_hours=window_hours, now_ms=now_ms),
+        "metrics_snapshot": metrics_snapshot,
+        "recent_window": recent_window,
+        "recommendations": build_recommendations(recent_window, metrics_snapshot),
         "daily": summarize_daily(events, days=days, now_ms=now_ms),
         "event_count": len(events),
     }
@@ -202,6 +236,26 @@ def render_markdown(report: dict[str, object]) -> str:
             lines.append(f"| {k} | {int(v)} |")
     else:
         lines.append("| (none) | 0 |")
+    lines.append("")
+
+    recommendations = report.get("recommendations", [])
+    lines.append("## Recommended Fixes")
+    lines.append("")
+    if isinstance(recommendations, list) and recommendations:
+        lines.append("| Category | Count | Suggested Fix |")
+        lines.append("|---|---:|---|")
+        for row in recommendations:
+            if not isinstance(row, dict):
+                continue
+            lines.append(
+                "| {category} | {count} | {suggestion} |".format(
+                    category=row.get("category", "unknown"),
+                    count=int(row.get("count", 0)),
+                    suggestion=row.get("suggestion", ""),
+                )
+            )
+    else:
+        lines.append("- No recommendations yet. Keep collecting onboard events.")
     lines.append("")
 
     lines.append("## Daily Trend")

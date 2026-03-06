@@ -71,6 +71,8 @@ plugins:
             Quickstart (Ollama): 快速开始（Ollama）
             Skills Quickstart: Skills 快速上手
             New User Walkthrough: 新人复习
+            Starter Tasks: Starter Tasks
+            Onboarding Troubleshooting: 上手排障
             5-Minute Outcomes: 5 分钟可见结果
             Beginner FAQ: 新手 FAQ
             Workflows: 工作流
@@ -121,6 +123,7 @@ plugins:
             "What Is LoopForge?": 什么是 LoopForge？
             Personal AI Engineer: 个人研发助理定位
             LoopForge vs OpenFang/OpenClaw: LoopForge 与 OpenFang/OpenClaw
+            What LoopForge Is Borrowing Next from OpenFang and OpenClaw: LoopForge 下一轮从 OpenFang 和 OpenClaw 借鉴什么
             MCP Integration Guide: MCP 集成指南
             Agent Memory Design: Agent 记忆设计
             Safe Code Execution: 安全代码执行
@@ -174,6 +177,8 @@ nav:
           - Quickstart (Ollama): tutorials/quickstart-ollama.md
           - Skills Quickstart: tutorials/skills-quickstart.md
           - New User Walkthrough: tutorials/new-user-walkthrough.md
+          - Starter Tasks: tutorials/first-day-starter-tasks.md
+          - Onboarding Troubleshooting: how-to/onboarding-troubleshooting.md
           - 5-Minute Outcomes: tutorials/five-minute-outcomes.md
           - Beginner FAQ: how-to/faq.md
       - Workflows:
@@ -218,6 +223,7 @@ nav:
   - Blog:
       - Index: blog/index.md
       - LoopForge v1.0.0 Release Notes: blog/loopforge-v1-0-0-release-notes.md
+      - What LoopForge Is Borrowing Next from OpenFang and OpenClaw: blog/loopforge-next-iteration-openfang-openclaw.md
       - MCP Integration Guide: blog/mcp-integration-guide.md
       - Agent Memory Design: blog/agent-memory-design.md
       - Safe Code Execution: blog/safe-code-execution.md

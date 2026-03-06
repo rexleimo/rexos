@@ -4,35 +4,59 @@
 
 **Your Personal AI Engineer for real shipping work.**
 
-From prompt to deliverable artifacts: fix report, release checklist, research memo, and reproducible checkpoints.
+Start with one command, get a real artifact, and keep a reproducible trail from prompt to deliverable.
 
-[Start in 5 minutes](tutorials/five-minute-outcomes.md){ .md-button .md-button--primary }
-[What it can do](examples/case-tasks/index.md){ .md-button }
+[Start with `onboard`](tutorials/new-user-walkthrough.md){ .md-button .md-button--primary }
+[Starter tasks](tutorials/first-day-starter-tasks.md){ .md-button }
+[Troubleshooting](how-to/onboarding-troubleshooting.md){ .md-button }
 [Why LoopForge](explanation/why-loopforge.md){ .md-button }
-[Quick intro](blog/what-is-loopforge.md){ .md-button }
-[Personal AI Engineer](blog/personal-ai-engineer.md){ .md-button }
 
 <p class="rexos-muted">
-OpenClaw is known as a personal assistant. LoopForge is positioned as a personal AI engineer for builders: local-first, reproducible, and audit-friendly.
+OpenClaw is closer to a personal assistant. LoopForge is optimized for builders: local-first, artifact-oriented, and audit-friendly.
 </p>
 
 </div>
 
-> LoopForge is the product name. CLI is `loopforge`; config stays in `~/.loopforge`.
+> Product name: **LoopForge**. CLI: `loopforge`. Runtime data path: `~/.loopforge`.
+
+## Start Here
+
+=== "1) One-command onboarding"
+    ```bash
+    ollama serve
+    loopforge onboard --workspace loopforge-onboard-demo
+    ```
+
+=== "2) Skip agent, verify setup only"
+    ```bash
+    loopforge onboard --workspace loopforge-onboard-demo --skip-agent
+    ```
+
+=== "3) Use a starter profile"
+    ```bash
+    loopforge onboard --workspace loopforge-onboard-demo --starter workspace-brief
+    ```
+
+After `onboard`, LoopForge writes:
+
+- `loopforge-onboard-demo/.loopforge/onboard-report.json`
+- `loopforge-onboard-demo/.loopforge/onboard-report.md`
+
+These files tell you what passed, what failed, and what to do next.
 
 <div class="grid cards" markdown>
+
+- :material-rocket-launch: **First-Day Starter Tasks**
+  Pick a guided first task instead of writing a prompt from scratch.
+  [Open starter tasks](tutorials/first-day-starter-tasks.md)
+
+- :material-stethoscope: **Onboarding Troubleshooting**
+  Fix common first-run issues quickly: config, provider, browser, or model setup.
+  [Open troubleshooting](how-to/onboarding-troubleshooting.md)
 
 - :material-hammer-wrench: **Fix One Failing Test**
   Ask LoopForge to run tests, repair one failure, and write `notes/fix-report.md`.
   [Copy/paste prompt](examples/case-tasks/fix-one-failing-test.md)
-
-- :material-clipboard-check: **Release Readiness Audit**
-  Generate a practical release go/no-go checklist from commits, tests, and changelog.
-  [Copy/paste prompt](examples/case-tasks/release-readiness-audit.md)
-
-- :material-file-document-edit: **Routing Plan + Cost Notes**
-  Produce provider/model routing guidance with trade-offs and rollback notes.
-  [Copy/paste prompt](examples/case-tasks/provider-routing-plan.md)
 
 - :material-history: **Reproducible Progress**
   Keep a clear trail: change -> verify -> checkpoint.
@@ -40,37 +64,16 @@ OpenClaw is known as a personal assistant. LoopForge is positioned as a personal
 
 </div>
 
-## 3 Fast Outcomes
-
-=== "1) First successful run"
-    ```bash
-    ollama serve
-    loopforge init
-    mkdir -p my-work
-    loopforge agent run --workspace my-work --prompt "Create notes/hello.md with a short project intro."
-    ```
-
-=== "2) Fix one failing test"
-    ```bash
-    loopforge agent run --workspace . --prompt "Run tests. Fix one failing test. Re-run that test. Write notes/fix-report.md with root cause and patch summary."
-    ```
-
-=== "3) Release audit memo"
-    ```bash
-    loopforge agent run --workspace . --prompt "Read CHANGELOG.md and recent commits. Create notes/release-readiness.md with: risks, blockers, go/no-go, and next actions."
-    ```
-
 ## Where We Fit
 
-- Choose **LoopForge** when your primary need is engineering delivery and reproducible execution.
-- Choose assistant-style products when your primary need is daily life/chat experience.
-- Choose broad operation platforms when your primary need is channel coverage first.
-
-See detailed positioning: [Why LoopForge](explanation/why-loopforge.md).
+- Choose **LoopForge** when you care most about engineering delivery, reproducibility, and useful artifacts.
+- Choose assistant-style products when you care most about everyday personal chat workflows.
+- Choose broad operations platforms when you need channel coverage first.
 
 ## Next Steps
 
+- [New user walkthrough](tutorials/new-user-walkthrough.md)
+- [Starter tasks](tutorials/first-day-starter-tasks.md)
+- [Onboarding troubleshooting](how-to/onboarding-troubleshooting.md)
 - [5-minute outcomes](tutorials/five-minute-outcomes.md)
-- [Personal AI Engineer narrative](blog/personal-ai-engineer.md)
 - [Case task library](examples/case-tasks/index.md)
-- [Providers & routing](how-to/providers.md)

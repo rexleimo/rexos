@@ -39,11 +39,38 @@ cargo build --release -p loopforge-cli
 ./target/release/loopforge --help
 ```
 
-## Quick start (dev)
+## Quick start (recommended)
+
+For repository-wide verification during development:
 
 ```bash
 ./init.sh
 ```
+
+For the best first user run, use `onboard`:
+
+```bash
+# 1) Start Ollama
+ollama serve
+
+# 2) Run one-command onboarding
+loopforge onboard --workspace loopforge-onboard-demo
+```
+
+Useful variations:
+
+```bash
+# setup-only path (skip first task)
+loopforge onboard --workspace loopforge-onboard-demo --skip-agent
+
+# use a more useful starter task
+loopforge onboard --workspace loopforge-onboard-demo --starter workspace-brief
+```
+
+After onboarding, LoopForge writes:
+
+- `loopforge-onboard-demo/.loopforge/onboard-report.json`
+- `loopforge-onboard-demo/.loopforge/onboard-report.md`
 
 ## Run with Ollama (OpenAI-compatible)
 
@@ -53,7 +80,7 @@ LoopForge defaults to `ollama` at `http://127.0.0.1:11434/v1` in `~/.loopforge/c
 # 1) Start Ollama
 ollama serve
 
-# 2) Init LoopForge
+# 2) Init LoopForge (optional if you use onboard)
 loopforge init
 
 # 3) Run an agent session in a workspace directory

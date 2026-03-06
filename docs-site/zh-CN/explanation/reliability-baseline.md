@@ -1,90 +1,78 @@
 # 可靠性基线
 
-本页定义 LoopForge 在新用户 onboarding 阶段最小化追踪的可靠性信号。
+本页定义 LoopForge 在 onboarding 阶段最小需要追踪的可靠性信号。
 
 ## 为什么需要这套基线
 
-目标很直接：降低“首次成功时间”，并让 onboarding 失败可诊断、可归因。
+目标很直接：
 
-## 核心 onboarding 指标
+- 降低首次成功时间
+- 让 onboarding 失败可诊断
+- 让用户和维护者看到同一套证据链
 
-LoopForge 会把首任务结果写入 `~/.loopforge/onboard-metrics.json`：
+## 核心产物
 
-- `attempted_first_task`：实际尝试首个 agent 任务的次数
-- `first_task_success`：首任务成功次数
-- `first_task_failed`：首任务失败次数
-- `failure_by_category`：按类别聚合失败（例如 `model_unavailable`、`provider_unreachable`）
+一次成功或失败的 onboarding，通常会留下三类产物：
 
-可以计算：
-
-- **首任务成功率** = `first_task_success / attempted_first_task`
-
-## 失败事件日志
-
-每次 onboarding 结果还会追加到：
-
+- `~/.loopforge/onboard-metrics.json`
 - `~/.loopforge/onboard-events.jsonl`
+- `<workspace>/.loopforge/onboard-report.json` 和 `.md`
 
-每行包含时间戳、workspace、session id、结果状态，以及失败时的分类与错误摘要。
+组合使用方式：
 
-## 查看当前指标
+- metrics 看趋势
+- events 看原始尝试记录
+- workspace 报告看最近一次运行的状态与下一步建议
 
-=== "macOS/Linux"
-    ```bash
-    cat ~/.loopforge/onboard-metrics.json
-    tail -n 20 ~/.loopforge/onboard-events.jsonl
-    ```
+## 核心指标
 
-=== "Windows (PowerShell)"
-    ```powershell
-    Get-Content $HOME/.loopforge/onboard-metrics.json
-    Get-Content $HOME/.loopforge/onboard-events.jsonl -Tail 20
-    ```
+LoopForge 会追踪：
 
-## 日报汇总脚本
+- `attempted_first_task`
+- `first_task_success`
+- `first_task_failed`
+- `failure_by_category`
 
-LoopForge 内置了一个 onboarding 指标日报脚本：
+常见分类：
+
+- `model_unavailable`
+- `provider_unreachable`
+- `tool_runtime_error`
+- `sandbox_restriction`
+- `unknown`
+
+## 日报脚本
+
+LoopForge 内置了：
 
 - `scripts/onboard_metrics_report.py`
 
-在仓库根目录执行：
+在仓库根目录运行：
 
-=== "macOS/Linux"
-    ```bash
-    python3 scripts/onboard_metrics_report.py \
-      --base-dir ~/.loopforge \
-      --out-dir .tmp/onboard-report \
-      --days 7 \
-      --window-hours 24
+```bash
+python3 scripts/onboard_metrics_report.py \
+  --base-dir ~/.loopforge \
+  --out-dir .tmp/onboard-report \
+  --days 7 \
+  --window-hours 24
+```
 
-    cat .tmp/onboard-report/onboard-report.md
-    ```
-
-=== "Windows (PowerShell)"
-    ```powershell
-    python scripts/onboard_metrics_report.py `
-      --base-dir $HOME/.loopforge `
-      --out-dir .tmp/onboard-report `
-      --days 7 `
-      --window-hours 24
-
-    Get-Content .tmp/onboard-report/onboard-report.md
-    ```
-
-输出文件：
+会生成：
 
 - `.tmp/onboard-report/onboard-report.json`
 - `.tmp/onboard-report/onboard-report.md`
 
-## 初始目标建议
+Markdown 报告现在会包含：
 
-- 首任务成功率 >= 70%
-- `model_unavailable` + `provider_unreachable` 之和占失败比重 < 50%
-- 首次成功中位时间 <= 3 分钟（可通过外部埋点补充）
+- 指标快照
+- 最近失败分类
+- **top failure 的推荐修复动作**
+- 每日趋势表
 
 ## 运维闭环
 
-1. 跑 onboarding
-2. 看失败分类
-3. 先修复占比最高的分类（模型配置 / provider 连通性 / 配置错误）
-4. 复跑并比较趋势
+1. 运行 `loopforge onboard`
+2. 打开 workspace 里的 `.loopforge/onboard-report.md`
+3. 必要时运行 `loopforge doctor`
+4. 用 `scripts/onboard_metrics_report.py` 看趋势
+5. 优先修复重复出现最多的失败类型

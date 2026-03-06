@@ -33,6 +33,8 @@ pub struct DoctorCheck {
 pub struct DoctorReport {
     pub checks: Vec<DoctorCheck>,
     pub summary: DoctorSummary,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub next_actions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -76,6 +78,12 @@ impl DoctorReport {
             "\nSummary: ok={} warn={} error={}\n",
             self.summary.ok, self.summary.warn, self.summary.error
         ));
+        if !self.next_actions.is_empty() {
+            out.push_str("\nSuggested next steps:\n");
+            for action in &self.next_actions {
+                out.push_str(&format!("- {action}\n"));
+            }
+        }
         out
     }
 }
@@ -294,7 +302,12 @@ pub async fn run_doctor(opts: DoctorOptions) -> anyhow::Result<DoctorReport> {
     ));
 
     let summary = summarize(&checks);
-    Ok(DoctorReport { checks, summary })
+    let next_actions = derive_next_actions(&checks);
+    Ok(DoctorReport {
+        checks,
+        summary,
+        next_actions,
+    })
 }
 
 fn summarize(checks: &[DoctorCheck]) -> DoctorSummary {
@@ -309,6 +322,118 @@ fn summarize(checks: &[DoctorCheck]) -> DoctorSummary {
         }
     }
     DoctorSummary { ok, warn, error }
+}
+
+fn derive_next_actions(checks: &[DoctorCheck]) -> Vec<String> {
+    let mut actions: Vec<String> = Vec::new();
+
+    fn push_unique(actions: &mut Vec<String>, action: impl Into<String>) {
+        let action = action.into();
+        if !actions.iter().any(|existing| existing == &action) {
+            actions.push(action);
+        }
+    }
+
+    let find = |id: &str| checks.iter().find(|check| check.id == id);
+
+    let missing_config = find("paths.config")
+        .map(|check| check.status == CheckStatus::Warn)
+        .unwrap_or(false);
+    let missing_db = find("paths.db")
+        .map(|check| check.status == CheckStatus::Warn)
+        .unwrap_or(false);
+    if missing_config || missing_db {
+        push_unique(
+            &mut actions,
+            "Run `loopforge init` to create `~/.loopforge/config.toml` and `~/.loopforge/loopforge.db`.",
+        );
+    }
+
+    if let Some(check) = find("config.parse") {
+        if check.status == CheckStatus::Error {
+            push_unique(
+                &mut actions,
+                format!(
+                    "Fix `~/.loopforge/config.toml` so it parses cleanly, then rerun `loopforge doctor` ({})",
+                    check.message
+                ),
+            );
+        }
+    }
+
+    let router_errors: Vec<String> = checks
+        .iter()
+        .filter(|check| check.id.starts_with("router.") && check.status == CheckStatus::Error)
+        .map(|check| check.id.clone())
+        .collect();
+    if !router_errors.is_empty() {
+        push_unique(
+            &mut actions,
+            format!(
+                "Update your `[router.*]` provider names in `~/.loopforge/config.toml` so they match defined providers (failing checks: {}).",
+                router_errors.join(", ")
+            ),
+        );
+    }
+
+    if let Some(check) = find("providers.api_keys") {
+        if check.status == CheckStatus::Warn {
+            push_unique(
+                &mut actions,
+                format!(
+                    "Export the missing provider credentials before rerunning LoopForge ({})",
+                    check.message
+                ),
+            );
+        }
+    }
+
+    if let Some(check) = find("ollama.http") {
+        if check.status != CheckStatus::Ok {
+            push_unique(
+                &mut actions,
+                "Start Ollama with `ollama serve`, verify the configured base URL, or switch `[router.*]` away from `ollama` if you are using another provider.".to_string(),
+            );
+        }
+    }
+
+    if let Some(check) = find("browser.cdp_http") {
+        if check.status != CheckStatus::Ok {
+            push_unique(
+                &mut actions,
+                format!(
+                    "Verify `LOOPFORGE_BROWSER_CDP_HTTP` points to a live Chromium DevTools endpoint ({})",
+                    check.message
+                ),
+            );
+        }
+    }
+
+    if let Some(check) = find("browser.chromium") {
+        if check.status != CheckStatus::Ok {
+            push_unique(
+                &mut actions,
+                format!(
+                    "Install a Chromium-based browser or set `LOOPFORGE_BROWSER_CHROME_PATH` / `LOOPFORGE_BROWSER_CDP_HTTP` ({})",
+                    check.message
+                ),
+            );
+        }
+    }
+
+    if let Some(check) = find("tools.git") {
+        if check.status == CheckStatus::Error {
+            push_unique(
+                &mut actions,
+                format!(
+                    "Install Git so LoopForge can work with repositories ({})",
+                    check.message
+                ),
+            );
+        }
+    }
+
+    actions
 }
 
 fn check_command(command: &str, args: &[&str], id: &str, required: bool) -> DoctorCheck {
@@ -431,6 +556,82 @@ mod tests {
     use axum::routing::get;
     use axum::{Json, Router};
     use serde_json::json;
+
+    #[tokio::test]
+    async fn doctor_suggests_running_init_when_core_files_are_missing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = RexosPaths {
+            base_dir: tmp.path().join(".loopforge"),
+        };
+        std::fs::create_dir_all(&paths.base_dir).unwrap();
+
+        let report = run_doctor(DoctorOptions {
+            paths,
+            timeout: Duration::from_millis(200),
+        })
+        .await
+        .unwrap();
+
+        let value = serde_json::to_value(&report).unwrap();
+        let next_actions = value
+            .get("next_actions")
+            .and_then(|item| item.as_array())
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            next_actions
+                .iter()
+                .any(|item| item.as_str().unwrap_or("").contains("loopforge init")),
+            "expected init guidance in next_actions, got: {next_actions:?}"
+        );
+        assert!(
+            report.to_text().contains("Suggested next steps"),
+            "expected text output to include suggested next steps, got: {}",
+            report.to_text()
+        );
+    }
+
+    #[tokio::test]
+    async fn doctor_suggests_missing_provider_env_vars() {
+        let tmp = tempfile::tempdir().unwrap();
+        let paths = RexosPaths {
+            base_dir: tmp.path().join(".loopforge"),
+        };
+        std::fs::create_dir_all(&paths.base_dir).unwrap();
+
+        let mut cfg = RexosConfig::default();
+        cfg.providers.insert(
+            "anthropic".to_string(),
+            rexos::config::ProviderConfig {
+                kind: ProviderKind::Anthropic,
+                base_url: "https://api.anthropic.com".to_string(),
+                api_key_env: "ANTHROPIC_API_KEY".to_string(),
+                default_model: "claude-3-5-sonnet-latest".to_string(),
+            },
+        );
+        std::fs::write(paths.config_path(), toml::to_string(&cfg).unwrap()).unwrap();
+        std::env::remove_var("ANTHROPIC_API_KEY");
+
+        let report = run_doctor(DoctorOptions {
+            paths,
+            timeout: Duration::from_millis(200),
+        })
+        .await
+        .unwrap();
+
+        let value = serde_json::to_value(&report).unwrap();
+        let next_actions = value
+            .get("next_actions")
+            .and_then(|item| item.as_array())
+            .cloned()
+            .unwrap_or_default();
+        assert!(
+            next_actions
+                .iter()
+                .any(|item| item.as_str().unwrap_or("").contains("ANTHROPIC_API_KEY")),
+            "expected provider env guidance in next_actions, got: {next_actions:?}"
+        );
+    }
 
     #[tokio::test]
     async fn doctor_probes_local_ollama_models_and_cdp_version() {

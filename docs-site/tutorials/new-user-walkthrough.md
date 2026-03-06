@@ -1,138 +1,87 @@
 # New User Walkthrough (10 minutes)
 
-This walkthrough is a “sanity check” you can run after installing LoopForge. You’ll verify:
-
-- your local model (Ollama) works
-- tools are sandboxed to a workspace
-- memory persists across runs
-- harness workspaces create durable artifacts + git checkpoints
+This is the fastest way to prove LoopForge is usable on your machine.
 
 ## 0) Prerequisites
 
 - `loopforge` is installed and on your `PATH`
 - Ollama is running: `ollama serve`
-- you have at least one **chat model** available:
+- you have at least one chat model available:
 
 ```bash
 ollama list
 ```
 
-If the default model (`llama3.2`) is not installed, either pull it:
+If `llama3.2` is not installed, either pull it or set a model you already have in `~/.loopforge/config.toml`.
 
-```bash
-ollama pull llama3.2
-```
-
-…or edit `~/.loopforge/config.toml` and set:
-
-```toml
-[providers.ollama]
-default_model = "qwen3:4b" # example: pick a model you already have
-```
-
-## 0.5) One-command onboarding (recommended)
-
-If you want a single command to run `init + config check + doctor + first task`:
+## 1) Recommended first run: `onboard`
 
 ```bash
 loopforge onboard --workspace loopforge-onboard-demo
 ```
 
-Optional:
+Expected:
+
+- config validation passes
+- doctor output prints a summary
+- the first task runs once
+- LoopForge prints a recommended next command
+- these report artifacts exist:
+  - `loopforge-onboard-demo/.loopforge/onboard-report.json`
+  - `loopforge-onboard-demo/.loopforge/onboard-report.md`
+
+If you only want to validate setup first:
 
 ```bash
-# only run setup checks (skip first agent task)
 loopforge onboard --workspace loopforge-onboard-demo --skip-agent
 ```
 
-Expected:
-- prints config validation result
-- prints doctor summary
-- runs one first task in the workspace (unless `--skip-agent`)
-- prints `session_id` for continuation
-
-## 1) Initialize LoopForge
+If you want a more useful first task than `hello.txt`:
 
 ```bash
-loopforge init
+loopforge onboard --workspace loopforge-onboard-demo --starter workspace-brief
 ```
 
-Expected artifacts:
+## 2) Read the onboarding report
 
-- `~/.loopforge/config.toml`
-- `~/.loopforge/loopforge.db`
+Open:
 
-## 2) Run a one-shot agent session (workspace sandbox)
+- `loopforge-onboard-demo/.loopforge/onboard-report.md`
 
-=== "macOS/Linux"
-    ```bash
-    mkdir -p loopforge-demo
-    loopforge agent run --workspace loopforge-demo --prompt "Create hello.txt with the word hi"
-    cat loopforge-demo/hello.txt
-    ```
+This report tells you:
 
-=== "Windows (PowerShell)"
-    ```powershell
-    mkdir loopforge-demo
-    loopforge agent run --workspace loopforge-demo --prompt "Create hello.txt with the word hi"
-    Get-Content .\loopforge-demo\hello.txt
-    ```
+- what passed
+- what failed
+- what LoopForge recommends next
+- which starter tasks you can run next
 
-Expected:
+## 3) Continue with one more task
 
-- `hello.txt` exists in the workspace and contains `hi`
-- LoopForge prints a `session_id` to stderr and also persists it under `loopforge-demo/.loopforge/session_id`
-
-## 3) Re-run in the same workspace (memory)
+If onboarding succeeded, run one more concrete task in the same workspace:
 
 ```bash
-loopforge agent run --workspace loopforge-demo --prompt "Append a newline + bye to hello.txt"
+loopforge agent run --workspace loopforge-onboard-demo --prompt "Continue from the current workspace and write notes/next-steps.md with 3 follow-up actions."
 ```
 
-Verify the file updated:
+## 4) Pick a first-day direction
 
-=== "macOS/Linux"
-    ```bash
-    cat loopforge-demo/hello.txt
-    ```
+Choose one of these next:
 
-=== "Windows (PowerShell)"
-    ```powershell
-    Get-Content .\loopforge-demo\hello.txt
-    ```
+- [Starter tasks](first-day-starter-tasks.md)
+- [5-minute outcomes](five-minute-outcomes.md)
+- [Case tasks](../examples/case-tasks/index.md)
+- [Onboarding troubleshooting](../how-to/onboarding-troubleshooting.md)
 
-## 4) Create a harness workspace (durable artifacts + git)
+## 5) If something failed
 
-=== "macOS/Linux"
-    ```bash
-    mkdir -p loopforge-harness-demo
-    loopforge harness init loopforge-harness-demo
-    ```
-
-=== "Windows (PowerShell)"
-    ```powershell
-    mkdir loopforge-harness-demo
-    loopforge harness init loopforge-harness-demo
-    ```
-
-Expected files in `loopforge-harness-demo/`:
-
-- `features.json`
-- `loopforge-progress.md`
-- `init.sh` and `init.ps1`
-- a `.git/` directory with an initial commit
-
-Run the harness preflight (no prompt):
+Run:
 
 ```bash
-loopforge harness run loopforge-harness-demo
+loopforge doctor
 ```
 
-## 5) Docs buttons (reproducibility)
+Then use the suggested next steps in:
 
-On the docs site, every page should have:
-
-- **Edit this page** → opens GitHub at `docs-site/...`
-- **View source** → opens the raw Markdown file
-
-If these buttons are missing or broken, check the docs workflow and `mkdocs.yml` (`repo_url` + `edit_uri`).
+- terminal output
+- `loopforge-onboard-demo/.loopforge/onboard-report.md`
+- [Onboarding troubleshooting](../how-to/onboarding-troubleshooting.md)

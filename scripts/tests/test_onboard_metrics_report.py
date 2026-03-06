@@ -98,6 +98,11 @@ class OnboardMetricsReportTests(unittest.TestCase):
             self.assertEqual(recent["success_rate"], "50.00%")
             self.assertEqual(recent["failure_by_category"]["provider_unreachable"], 1)
 
+            recommendations = report["recommendations"]
+            self.assertTrue(recommendations)
+            self.assertEqual(recommendations[0]["category"], "provider_unreachable")
+            self.assertIn("ollama serve", recommendations[0]["suggestion"])
+
             daily = report["daily"]
             self.assertEqual(len(daily), 4)
             row_0303 = [r for r in daily if r["date"] == "2026-03-03"][0]
@@ -123,6 +128,13 @@ class OnboardMetricsReportTests(unittest.TestCase):
                 "success_rate": "66.67%",
                 "failure_by_category": {"model_unavailable": 1},
             },
+            "recommendations": [
+                {
+                    "category": "model_unavailable",
+                    "count": 1,
+                    "suggestion": "Run `ollama list` and set a chat model that exists locally.",
+                }
+            ],
             "daily": [
                 {
                     "date": "2026-03-05",
@@ -137,8 +149,10 @@ class OnboardMetricsReportTests(unittest.TestCase):
         self.assertIn("# Onboard Metrics Report", md)
         self.assertIn("## Metrics Snapshot", md)
         self.assertIn("## Recent Window (Last 24h)", md)
+        self.assertIn("## Recommended Fixes", md)
         self.assertIn("## Daily Trend", md)
         self.assertIn("model_unavailable", md)
+        self.assertIn("ollama list", md)
 
     def test_main_writes_json_and_markdown(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -14,7 +14,7 @@ This repo uses SemVer with a `v` tag prefix (`vMAJOR.MINOR.PATCH`):
 - `MINOR`: planned feature iteration (preferred during `0.x` stage).
 - `PATCH`: bugfixes, documentation, or small safe improvements.
 
-Current workspace version is `1.0.0` (from root `Cargo.toml` `[workspace.package].version`).
+Current workspace version is `1.1.0` (from root `Cargo.toml` `[workspace.package].version`).
 
 ## First Release Plan (`v1.0.0`)
 

@@ -1,138 +1,87 @@
-# 新人复习（10 分钟）
+# 新人 walkthrough（10 分钟）
 
-这个教程是一个“安装后自检流程”，帮你确认 LoopForge 的核心链路都跑通：
-
-- 本地模型（Ollama）可用
-- 工具调用被沙盒限制在 workspace 内
-- 同一个 `session_id` 可以多次续跑（记忆持久化）
-- harness workspace 会产出持久化文件 + git checkpoint
+这是验证 LoopForge 在你机器上能否跑通的最快路径。
 
 ## 0) 前置条件
 
-- `loopforge` 已安装并在 `PATH` 中
-- Ollama 正在运行：`ollama serve`
-- Ollama 里至少有一个 **对话模型**：
+- `loopforge` 已安装并加入 `PATH`
+- Ollama 已启动：`ollama serve`
+- 你至少有一个可用的对话模型：
 
 ```bash
 ollama list
 ```
 
-如果默认模型（`llama3.2`）没有拉取，你可以：
+如果 `llama3.2` 没有安装，可以先拉取，或者把 `~/.loopforge/config.toml` 改成你本机已有的模型。
 
-```bash
-ollama pull llama3.2
-```
-
-或者编辑 `~/.loopforge/config.toml`，把默认模型切到你已有的模型，例如：
-
-```toml
-[providers.ollama]
-default_model = "qwen3:4b" # 示例：换成你本机已有的模型
-```
-
-## 0.5) 一条命令完成 onboarding（推荐）
-
-如果你想一次性跑完 `init + 配置校验 + doctor + 首个任务`：
+## 1) 推荐第一跑：`onboard`
 
 ```bash
 loopforge onboard --workspace loopforge-onboard-demo
 ```
 
-可选：
+预期：
+
+- 配置校验通过
+- doctor 输出摘要
+- 首个任务运行一次
+- LoopForge 打印推荐的下一条命令
+- 生成以下报告产物：
+  - `loopforge-onboard-demo/.loopforge/onboard-report.json`
+  - `loopforge-onboard-demo/.loopforge/onboard-report.md`
+
+如果你只想先检查环境：
 
 ```bash
-# 只做环境与配置检查，不跑首个 agent 任务
 loopforge onboard --workspace loopforge-onboard-demo --skip-agent
 ```
 
-预期：
-- 输出 config 校验结果
-- 输出 doctor 汇总
-- 在 workspace 里跑一条首任务（除非传 `--skip-agent`）
-- 打印 `session_id` 便于续跑
-
-## 1) 初始化 LoopForge
+如果你想跑一个比 `hello.txt` 更有价值的首任务：
 
 ```bash
-loopforge init
+loopforge onboard --workspace loopforge-onboard-demo --starter workspace-brief
 ```
 
-预期产物：
+## 2) 打开 onboarding 报告
 
-- `~/.loopforge/config.toml`
-- `~/.loopforge/loopforge.db`
+打开：
 
-## 2) 跑一次 one-shot session（workspace 沙盒）
+- `loopforge-onboard-demo/.loopforge/onboard-report.md`
 
-=== "macOS/Linux"
-    ```bash
-    mkdir -p loopforge-demo
-    loopforge agent run --workspace loopforge-demo --prompt "Create hello.txt with the word hi"
-    cat loopforge-demo/hello.txt
-    ```
+这份报告会告诉你：
 
-=== "Windows (PowerShell)"
-    ```powershell
-    mkdir loopforge-demo
-    loopforge agent run --workspace loopforge-demo --prompt "Create hello.txt with the word hi"
-    Get-Content .\loopforge-demo\hello.txt
-    ```
+- 哪些步骤成功
+- 哪些步骤失败
+- 推荐下一步做什么
+- 下一批 starter tasks 是什么
 
-预期：
+## 3) 在同一 workspace 里继续一次任务
 
-- workspace 里生成 `hello.txt`，内容为 `hi`
-- stderr 会打印 `session_id`，并且会持久化到 `loopforge-demo/.loopforge/session_id`
-
-## 3) 在同一个 workspace 里续跑（记忆）
+如果 onboarding 成功，再跑一个具体任务：
 
 ```bash
-loopforge agent run --workspace loopforge-demo --prompt "Append a newline + bye to hello.txt"
+loopforge agent run --workspace loopforge-onboard-demo --prompt "Continue from the current workspace and write notes/next-steps.md with 3 follow-up actions."
 ```
 
-验证文件已更新：
+## 4) 第一天下一步做什么
 
-=== "macOS/Linux"
-    ```bash
-    cat loopforge-demo/hello.txt
-    ```
+你可以继续看：
 
-=== "Windows (PowerShell)"
-    ```powershell
-    Get-Content .\loopforge-demo\hello.txt
-    ```
+- [Starter Tasks](first-day-starter-tasks.md)
+- [5 分钟可见结果](five-minute-outcomes.md)
+- [案例任务](../examples/case-tasks/index.md)
+- [上手排障](../how-to/onboarding-troubleshooting.md)
 
-## 4) 创建 harness workspace（持久化产物 + git）
+## 5) 如果失败了
 
-=== "macOS/Linux"
-    ```bash
-    mkdir -p loopforge-harness-demo
-    loopforge harness init loopforge-harness-demo
-    ```
-
-=== "Windows (PowerShell)"
-    ```powershell
-    mkdir loopforge-harness-demo
-    loopforge harness init loopforge-harness-demo
-    ```
-
-在 `loopforge-harness-demo/` 里你应该能看到：
-
-- `features.json`
-- `loopforge-progress.md`
-- `init.sh` 和 `init.ps1`
-- `.git/`（且已经有一条初始化 commit）
-
-运行一次 preflight（不带 prompt）：
+运行：
 
 ```bash
-loopforge harness run loopforge-harness-demo
+loopforge doctor
 ```
 
-## 5) 文档按钮（可复现性）
+再结合以下三处建议排查：
 
-文档站点的每个页面都应该有：
-
-- **编辑此页** → 跳转到 GitHub 的 `docs-site/...`
-- **查看源文件** → 打开 raw Markdown
-
-如果按钮不见了或不可用，检查 docs workflow 以及 `mkdocs.yml`（`repo_url` + `edit_uri`）。
+- 终端里的 Suggested next steps
+- `loopforge-onboard-demo/.loopforge/onboard-report.md`
+- [上手排障](../how-to/onboarding-troubleshooting.md)

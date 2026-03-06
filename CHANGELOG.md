@@ -14,6 +14,21 @@ All notable user-visible changes are documented in this file.
   - New CLI command group: `loopforge skills list|show|doctor|run`
   - New docs pages: skills reference and skills quickstart (EN + ZH)
 
+## [1.1.0] - 2026-03-06
+
+### Added
+
+- `loopforge onboard --starter <hello|workspace-brief|repo-onboarding>` for guided first-day task selection.
+- Workspace-local onboarding reports at `.loopforge/onboard-report.json` and `.loopforge/onboard-report.md`.
+- New first-day docs pages for starter tasks and onboarding troubleshooting (EN + zh-CN).
+- New blog post documenting the next LoopForge iteration informed by OpenFang and OpenClaw.
+
+### Changed
+
+- `loopforge doctor` now includes additive `next_actions` guidance and prints `Suggested next steps` in text output.
+- Onboarding metrics reports now include recommended fixes for the most common failure categories.
+- README, homepage, CLI reference, walkthrough, reliability docs, and nav now route users through `onboard` first.
+
 ## [1.0.0] - 2026-03-06
 
 ### Changed

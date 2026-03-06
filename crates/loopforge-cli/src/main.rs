@@ -58,6 +58,82 @@ struct OnboardEvent {
     error: Option<String>,
 }
 
+#[derive(Debug, Clone, Copy, clap::ValueEnum, serde::Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+enum OnboardStarter {
+    Hello,
+    WorkspaceBrief,
+    RepoOnboarding,
+}
+
+impl OnboardStarter {
+    fn as_str(self) -> &'static str {
+        match self {
+            OnboardStarter::Hello => "hello",
+            OnboardStarter::WorkspaceBrief => "workspace-brief",
+            OnboardStarter::RepoOnboarding => "repo-onboarding",
+        }
+    }
+
+    fn default_prompt(self) -> &'static str {
+        match self {
+            OnboardStarter::Hello => "Create hello.txt with the word hi",
+            OnboardStarter::WorkspaceBrief => {
+                "Create notes/workspace-brief.md with: what this workspace is for, 3 risks, and 3 next actions."
+            }
+            OnboardStarter::RepoOnboarding => {
+                "Read README.md plus the most important project metadata files you can find. Create notes/repo-onboarding.md with: project purpose, how to run it, what to verify first, and 3 next actions."
+            }
+        }
+    }
+
+    fn description(self) -> &'static str {
+        match self {
+            OnboardStarter::Hello => "Minimal smoke check that proves file creation works.",
+            OnboardStarter::WorkspaceBrief => {
+                "Create a short workspace brief with risks and next actions."
+            }
+            OnboardStarter::RepoOnboarding => {
+                "Read the repo and produce an onboarding brief for real project work."
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct OnboardStarterSuggestion {
+    starter: String,
+    description: String,
+    command: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct OnboardTaskReport {
+    status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure_category: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct OnboardReportArtifact {
+    generated_at_ms: i64,
+    workspace: String,
+    config_path: String,
+    config_valid: bool,
+    starter: String,
+    effective_prompt: String,
+    doctor_summary: doctor::DoctorSummary,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    doctor_next_actions: Vec<String>,
+    task: OnboardTaskReport,
+    recommended_next_command: String,
+    starter_suggestions: Vec<OnboardStarterSuggestion>,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "loopforge")]
 #[command(
@@ -78,9 +154,12 @@ enum Command {
         /// Workspace directory for the first verification run
         #[arg(long, default_value = "loopforge-onboard-demo")]
         workspace: PathBuf,
-        /// Prompt for the first verification run
-        #[arg(long, default_value = "Create hello.txt with the word hi")]
-        prompt: String,
+        /// Optional explicit prompt for the first verification run
+        #[arg(long)]
+        prompt: Option<String>,
+        /// Starter profile used when `--prompt` is not provided
+        #[arg(long, value_enum, default_value_t = OnboardStarter::Hello)]
+        starter: OnboardStarter,
         /// Skip running the first agent task and only run setup checks
         #[arg(long)]
         skip_agent: bool,
@@ -362,6 +441,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Onboard {
             workspace,
             prompt,
+            starter,
             skip_agent,
             timeout_ms,
         } => {
@@ -371,15 +451,47 @@ async fn main() -> anyhow::Result<()> {
             MemoryStore::open_or_create(&paths)?;
             println!("Initialized {}", paths.base_dir.display());
 
-            let report = validate_config(&paths);
-            if !report.valid {
-                println!("config invalid: {}", report.config_path);
-                for err in &report.errors {
+            std::fs::create_dir_all(&workspace)
+                .with_context(|| format!("create workspace: {}", workspace.display()))?;
+            println!("workspace ready: {}", workspace.display());
+
+            let effective_prompt = resolve_onboard_prompt(prompt.as_deref(), starter);
+            let config_report = validate_config(&paths);
+            if !config_report.valid {
+                println!("config invalid: {}", config_report.config_path);
+                for err in &config_report.errors {
                     println!("- {err}");
                 }
+                let report = OnboardReportArtifact {
+                    generated_at_ms: now_ms(),
+                    workspace: workspace.display().to_string(),
+                    config_path: config_report.config_path.clone(),
+                    config_valid: false,
+                    starter: starter.as_str().to_string(),
+                    effective_prompt: effective_prompt.clone(),
+                    doctor_summary: doctor::DoctorSummary {
+                        ok: 0,
+                        warn: 0,
+                        error: 1,
+                    },
+                    doctor_next_actions: vec![format!(
+                        "Fix `{}` and rerun `loopforge config validate`.",
+                        config_report.config_path
+                    )],
+                    task: OnboardTaskReport {
+                        status: "blocked".to_string(),
+                        session_id: None,
+                        failure_category: Some("config_invalid".to_string()),
+                        error: Some(config_report.errors.join("; ")),
+                    },
+                    recommended_next_command: "loopforge config validate".to_string(),
+                    starter_suggestions: build_onboard_starter_suggestions(&workspace),
+                };
+                let (json_path, md_path) = write_onboard_report(&workspace, &report)?;
+                print_onboard_report_summary(&report, &json_path, &md_path);
                 std::process::exit(1);
             }
-            println!("config valid: {}", report.config_path);
+            println!("config valid: {}", config_report.config_path);
 
             let doctor_report = doctor::run_doctor(doctor::DoctorOptions {
                 paths: paths.clone(),
@@ -397,6 +509,32 @@ async fn main() -> anyhow::Result<()> {
                 for c in &blocking_errors {
                     eprintln!("- {}: {}", c.id, c.message);
                 }
+                let report = OnboardReportArtifact {
+                    generated_at_ms: now_ms(),
+                    workspace: workspace.display().to_string(),
+                    config_path: config_report.config_path.clone(),
+                    config_valid: true,
+                    starter: starter.as_str().to_string(),
+                    effective_prompt: effective_prompt.clone(),
+                    doctor_summary: doctor_report.summary.clone(),
+                    doctor_next_actions: doctor_report.next_actions.clone(),
+                    task: OnboardTaskReport {
+                        status: "blocked".to_string(),
+                        session_id: None,
+                        failure_category: Some("doctor_blocked".to_string()),
+                        error: Some(
+                            blocking_errors
+                                .iter()
+                                .map(|check| format!("{}: {}", check.id, check.message))
+                                .collect::<Vec<_>>()
+                                .join("; "),
+                        ),
+                    },
+                    recommended_next_command: "loopforge doctor".to_string(),
+                    starter_suggestions: build_onboard_starter_suggestions(&workspace),
+                };
+                let (json_path, md_path) = write_onboard_report(&workspace, &report)?;
+                print_onboard_report_summary(&report, &json_path, &md_path);
                 std::process::exit(1);
             }
             let non_blocking_errors = doctor_report
@@ -412,11 +550,31 @@ async fn main() -> anyhow::Result<()> {
                 );
             }
 
-            std::fs::create_dir_all(&workspace)
-                .with_context(|| format!("create workspace: {}", workspace.display()))?;
-            println!("workspace ready: {}", workspace.display());
-
             if skip_agent {
+                let report = OnboardReportArtifact {
+                    generated_at_ms: now_ms(),
+                    workspace: workspace.display().to_string(),
+                    config_path: config_report.config_path.clone(),
+                    config_valid: true,
+                    starter: starter.as_str().to_string(),
+                    effective_prompt: effective_prompt.clone(),
+                    doctor_summary: doctor_report.summary.clone(),
+                    doctor_next_actions: doctor_report.next_actions.clone(),
+                    task: OnboardTaskReport {
+                        status: "skipped".to_string(),
+                        session_id: None,
+                        failure_category: None,
+                        error: None,
+                    },
+                    recommended_next_command: format!(
+                        "loopforge onboard --workspace {} --starter {}",
+                        shell_quote(&workspace.display().to_string()),
+                        starter.as_str()
+                    ),
+                    starter_suggestions: build_onboard_starter_suggestions(&workspace),
+                };
+                let (json_path, md_path) = write_onboard_report(&workspace, &report)?;
+                print_onboard_report_summary(&report, &json_path, &md_path);
                 println!("onboard done (skipped first agent run)");
                 return Ok(());
             }
@@ -459,7 +617,7 @@ async fn main() -> anyhow::Result<()> {
                     workspace.clone(),
                     &session_id,
                     None,
-                    &prompt,
+                    &effective_prompt,
                     rexos::router::TaskKind::Coding,
                 )
                 .await
@@ -494,6 +652,26 @@ async fn main() -> anyhow::Result<()> {
                             eprintln!("onboard: failed to persist metrics: {log_err}");
                         }
                     }
+                    let report = OnboardReportArtifact {
+                        generated_at_ms: now_ms(),
+                        workspace: workspace.display().to_string(),
+                        config_path: config_report.config_path.clone(),
+                        config_valid: true,
+                        starter: starter.as_str().to_string(),
+                        effective_prompt: effective_prompt.clone(),
+                        doctor_summary: doctor_report.summary.clone(),
+                        doctor_next_actions: doctor_report.next_actions.clone(),
+                        task: OnboardTaskReport {
+                            status: "failed".to_string(),
+                            session_id: Some(session_id.clone()),
+                            failure_category: Some(failure_category.clone()),
+                            error: Some(err_msg.clone()),
+                        },
+                        recommended_next_command: recommended_next_command(&workspace, false),
+                        starter_suggestions: build_onboard_starter_suggestions(&workspace),
+                    };
+                    let (json_path, md_path) = write_onboard_report(&workspace, &report)?;
+                    print_onboard_report_summary(&report, &json_path, &md_path);
                     eprintln!("onboard: first agent run failed: {e}");
                     eprintln!(
                         "hint: run `ollama list` and set [providers.ollama].default_model in ~/.loopforge/config.toml to an available chat model"
@@ -514,6 +692,26 @@ async fn main() -> anyhow::Result<()> {
                     eprintln!("onboard: failed to persist metrics: {log_err}");
                 }
             }
+            let report = OnboardReportArtifact {
+                generated_at_ms: now_ms(),
+                workspace: workspace.display().to_string(),
+                config_path: config_report.config_path.clone(),
+                config_valid: true,
+                starter: starter.as_str().to_string(),
+                effective_prompt: effective_prompt.clone(),
+                doctor_summary: doctor_report.summary.clone(),
+                doctor_next_actions: doctor_report.next_actions.clone(),
+                task: OnboardTaskReport {
+                    status: "succeeded".to_string(),
+                    session_id: Some(session_id.clone()),
+                    failure_category: None,
+                    error: None,
+                },
+                recommended_next_command: recommended_next_command(&workspace, true),
+                starter_suggestions: build_onboard_starter_suggestions(&workspace),
+            };
+            let (json_path, md_path) = write_onboard_report(&workspace, &report)?;
+            print_onboard_report_summary(&report, &json_path, &md_path);
             println!("onboard done (first agent run completed)");
         }
         Command::Doctor {
@@ -625,10 +823,7 @@ async fn main() -> anyhow::Result<()> {
                     println!("{}", serde_json::to_string_pretty(&events)?);
                 } else {
                     for ev in events {
-                        let session = ev
-                            .get("session_id")
-                            .and_then(|v| v.as_str())
-                            .unwrap_or("-");
+                        let session = ev.get("session_id").and_then(|v| v.as_str()).unwrap_or("-");
                         let event_type = ev
                             .get("event_type")
                             .and_then(|v| v.as_str())
@@ -827,13 +1022,7 @@ If tool permissions are restricted, do not call tools outside the granted scope.
                 );
 
                 let out = match agent
-                    .run_session(
-                        workspace,
-                        &session_id,
-                        Some(&system),
-                        &input,
-                        kind.into(),
-                    )
+                    .run_session(workspace, &session_id, Some(&system), &input, kind.into())
                     .await
                 {
                     Ok(out) => {
@@ -1137,7 +1326,10 @@ fn record_onboard_attempt(
     } else {
         metrics.first_task_failed += 1;
         if let Some(category) = failure_category {
-            let entry = metrics.failure_by_category.entry(category.to_string()).or_insert(0);
+            let entry = metrics
+                .failure_by_category
+                .entry(category.to_string())
+                .or_insert(0);
             *entry += 1;
         }
     }
@@ -1161,7 +1353,152 @@ fn record_onboard_attempt(
     Ok(metrics)
 }
 
-async fn fetch_openai_compat_models(base_url: &str, timeout_ms: u64) -> anyhow::Result<Vec<String>> {
+fn resolve_onboard_prompt(prompt: Option<&str>, starter: OnboardStarter) -> String {
+    prompt
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| starter.default_prompt().to_string())
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
+}
+
+fn recommended_next_command(workspace: &Path, success: bool) -> String {
+    if success {
+        format!(
+            "loopforge agent run --workspace {} --prompt {}",
+            shell_quote(&workspace.display().to_string()),
+            shell_quote("Continue from the current workspace and write notes/next-steps.md with 3 follow-up actions.")
+        )
+    } else {
+        "loopforge doctor".to_string()
+    }
+}
+
+fn build_onboard_starter_suggestions(workspace: &Path) -> Vec<OnboardStarterSuggestion> {
+    [
+        OnboardStarter::Hello,
+        OnboardStarter::WorkspaceBrief,
+        OnboardStarter::RepoOnboarding,
+    ]
+    .into_iter()
+    .map(|starter| OnboardStarterSuggestion {
+        starter: starter.as_str().to_string(),
+        description: starter.description().to_string(),
+        command: format!(
+            "loopforge onboard --workspace {} --starter {}",
+            shell_quote(&workspace.display().to_string()),
+            starter.as_str()
+        ),
+    })
+    .collect()
+}
+
+fn onboard_report_paths(workspace: &Path) -> (PathBuf, PathBuf) {
+    let dir = workspace.join(".loopforge");
+    (
+        dir.join("onboard-report.json"),
+        dir.join("onboard-report.md"),
+    )
+}
+
+fn render_onboard_report_markdown(report: &OnboardReportArtifact) -> String {
+    let mut lines = vec![
+        "# LoopForge Onboard Report".to_string(),
+        "".to_string(),
+        format!("- Workspace: `{}`", report.workspace),
+        format!("- Starter: `{}`", report.starter),
+        format!("- Config valid: {}", report.config_valid),
+        format!(
+            "- Doctor summary: ok={} warn={} error={}",
+            report.doctor_summary.ok, report.doctor_summary.warn, report.doctor_summary.error
+        ),
+        format!("- First task status: `{}`", report.task.status),
+        format!(
+            "- Recommended next command: `{}`",
+            report.recommended_next_command
+        ),
+        "".to_string(),
+        "## Effective Prompt".to_string(),
+        "".to_string(),
+        "```text".to_string(),
+        report.effective_prompt.clone(),
+        "```".to_string(),
+        "".to_string(),
+    ];
+
+    if !report.doctor_next_actions.is_empty() {
+        lines.push("## Suggested Next Steps".to_string());
+        lines.push("".to_string());
+        for action in &report.doctor_next_actions {
+            lines.push(format!("- {}", action));
+        }
+        lines.push("".to_string());
+    }
+
+    lines.push("## Starter Suggestions".to_string());
+    lines.push("".to_string());
+    for suggestion in &report.starter_suggestions {
+        lines.push(format!(
+            "- `{}` — {}",
+            suggestion.command, suggestion.description
+        ));
+    }
+    lines.push("".to_string());
+
+    if let Some(session_id) = &report.task.session_id {
+        lines.push("## Session".to_string());
+        lines.push("".to_string());
+        lines.push(format!("- Session ID: `{}`", session_id));
+        lines.push("".to_string());
+    }
+
+    if let Some(error) = &report.task.error {
+        lines.push("## Error".to_string());
+        lines.push("".to_string());
+        lines.push("```text".to_string());
+        lines.push(error.clone());
+        lines.push("```".to_string());
+        lines.push("".to_string());
+    }
+
+    lines.join("\n")
+}
+
+fn write_onboard_report(
+    workspace: &Path,
+    report: &OnboardReportArtifact,
+) -> anyhow::Result<(PathBuf, PathBuf)> {
+    let (json_path, md_path) = onboard_report_paths(workspace);
+    if let Some(parent) = json_path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("create onboard report dir: {}", parent.display()))?;
+    }
+    std::fs::write(&json_path, serde_json::to_string_pretty(report)? + "\n")
+        .with_context(|| format!("write {}", json_path.display()))?;
+    std::fs::write(&md_path, render_onboard_report_markdown(report) + "\n")
+        .with_context(|| format!("write {}", md_path.display()))?;
+    Ok((json_path, md_path))
+}
+
+fn print_onboard_report_summary(report: &OnboardReportArtifact, json_path: &Path, md_path: &Path) {
+    println!("onboard summary:");
+    println!(
+        "- doctor: ok={} warn={} error={}",
+        report.doctor_summary.ok, report.doctor_summary.warn, report.doctor_summary.error
+    );
+    println!("- task status: {}", report.task.status);
+    println!("- report json: {}", json_path.display());
+    println!("- report md: {}", md_path.display());
+    println!("- next command: {}", report.recommended_next_command);
+}
+
+async fn fetch_openai_compat_models(
+    base_url: &str,
+    timeout_ms: u64,
+) -> anyhow::Result<Vec<String>> {
     let endpoint = format!("{}/models", base_url.trim_end_matches('/'));
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_millis(timeout_ms.max(500)))
@@ -1229,7 +1566,11 @@ fn changelog_has_release_section(changelog_text: &str, version: &str) -> bool {
         .any(|line| line.trim_start().starts_with(&target))
 }
 
-fn evaluate_release_metadata(cargo_toml: &str, changelog_text: &str, tag: &str) -> ReleaseCheckReport {
+fn evaluate_release_metadata(
+    cargo_toml: &str,
+    changelog_text: &str,
+    tag: &str,
+) -> ReleaseCheckReport {
     let mut checks = Vec::new();
 
     let tag_version = parse_release_tag_version(tag);
@@ -1316,7 +1657,10 @@ fn run_release_check(
 
     for (id, rel_path) in [
         ("workflow.release", ".github/workflows/release.yml"),
-        ("workflow.release_dry_run", ".github/workflows/release-dry-run.yml"),
+        (
+            "workflow.release_dry_run",
+            ".github/workflows/release-dry-run.yml",
+        ),
         ("script.package_release", "scripts/package_release.py"),
     ] {
         let full = repo_root.join(rel_path);
@@ -1431,8 +1775,14 @@ mod tests {
             .get_about()
             .map(|s| s.to_string())
             .unwrap_or_default();
-        assert!(about.contains("LoopForge"), "expected LoopForge about text, got: {about}");
-        assert!(!about.contains("RexOS"), "expected no RexOS mention, got: {about}");
+        assert!(
+            about.contains("LoopForge"),
+            "expected LoopForge about text, got: {about}"
+        );
+        assert!(
+            !about.contains("RexOS"),
+            "expected no RexOS mention, got: {about}"
+        );
     }
 
     #[test]
@@ -1481,13 +1831,7 @@ mod tests {
 
     #[test]
     fn cli_parses_acp_checkpoints_subcommand() {
-        let parsed = Cli::try_parse_from([
-            "loopforge",
-            "acp",
-            "checkpoints",
-            "--session",
-            "s-1",
-        ]);
+        let parsed = Cli::try_parse_from(["loopforge", "acp", "checkpoints", "--session", "s-1"]);
         assert!(
             parsed.is_ok(),
             "expected `loopforge acp checkpoints` to parse, got: {parsed:?}"
@@ -1542,11 +1886,31 @@ mod tests {
 
     #[test]
     fn cli_parses_onboard_subcommand() {
-        let parsed =
-            Cli::try_parse_from(["loopforge", "onboard", "--workspace", "loopforge-onboard-demo"]);
+        let parsed = Cli::try_parse_from([
+            "loopforge",
+            "onboard",
+            "--workspace",
+            "loopforge-onboard-demo",
+        ]);
         assert!(
             parsed.is_ok(),
             "expected `loopforge onboard` to parse, got: {parsed:?}"
+        );
+    }
+
+    #[test]
+    fn cli_parses_onboard_starter_profile() {
+        let parsed = Cli::try_parse_from([
+            "loopforge",
+            "onboard",
+            "--workspace",
+            "loopforge-onboard-demo",
+            "--starter",
+            "workspace-brief",
+        ]);
+        assert!(
+            parsed.is_ok(),
+            "expected `loopforge onboard --starter workspace-brief` to parse, got: {parsed:?}"
         );
     }
 
@@ -1577,7 +1941,10 @@ edition = "2021"
 "#;
         let changelog = "# Changelog\n\n## [Unreleased]\n";
         let report = evaluate_release_metadata(cargo, changelog, "v0.1.0");
-        assert!(!report.ok, "expected release metadata fail, got: {report:?}");
+        assert!(
+            !report.ok,
+            "expected release metadata fail, got: {report:?}"
+        );
         assert!(
             report
                 .checks
@@ -1598,7 +1965,10 @@ edition = "2021"
 
         let report = validate_config(&paths);
         assert!(report.valid, "expected config valid, got {report:?}");
-        assert!(report.errors.is_empty(), "expected no errors, got {report:?}");
+        assert!(
+            report.errors.is_empty(),
+            "expected no errors, got {report:?}"
+        );
     }
 
     #[test]
@@ -1613,7 +1983,10 @@ edition = "2021"
         let report = validate_config(&paths);
         assert!(!report.valid, "expected config invalid, got {report:?}");
         assert!(
-            report.errors.iter().any(|e| e.contains("parse config TOML")),
+            report
+                .errors
+                .iter()
+                .any(|e| e.contains("parse config TOML")),
             "expected parse error, got {report:?}"
         );
     }
@@ -1641,9 +2014,70 @@ edition = "2021"
 
     #[test]
     fn select_onboard_model_uses_first_when_only_embedding_exists() {
-        let selected =
-            select_onboard_model("llama3.2", &["nomic-embed-text:latest".to_string()]);
+        let selected = select_onboard_model("llama3.2", &["nomic-embed-text:latest".to_string()]);
         assert_eq!(selected.as_deref(), Some("nomic-embed-text:latest"));
+    }
+
+    #[test]
+    fn resolve_onboard_prompt_uses_starter_when_prompt_missing() {
+        let prompt = resolve_onboard_prompt(None, OnboardStarter::WorkspaceBrief);
+        assert!(
+            prompt.contains("workspace-brief") || prompt.contains("notes/workspace-brief.md"),
+            "expected workspace brief prompt, got: {prompt}"
+        );
+    }
+
+    #[test]
+    fn resolve_onboard_prompt_prefers_explicit_prompt() {
+        let prompt = resolve_onboard_prompt(Some("Create notes/custom.md"), OnboardStarter::Hello);
+        assert_eq!(prompt, "Create notes/custom.md");
+    }
+
+    #[test]
+    fn write_onboard_report_writes_json_and_markdown() {
+        let tmp = tempdir().unwrap();
+        let workspace = tmp.path().join("demo-work");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let report = OnboardReportArtifact {
+            generated_at_ms: 1,
+            workspace: workspace.display().to_string(),
+            config_path: "~/.loopforge/config.toml".to_string(),
+            config_valid: true,
+            starter: OnboardStarter::Hello.as_str().to_string(),
+            effective_prompt: OnboardStarter::Hello.default_prompt().to_string(),
+            doctor_summary: doctor::DoctorSummary {
+                ok: 2,
+                warn: 1,
+                error: 0,
+            },
+            doctor_next_actions: vec![
+                "Run `loopforge doctor` again after fixing config.".to_string()
+            ],
+            task: OnboardTaskReport {
+                status: "skipped".to_string(),
+                session_id: None,
+                failure_category: None,
+                error: None,
+            },
+            recommended_next_command: "loopforge onboard --workspace demo-work".to_string(),
+            starter_suggestions: build_onboard_starter_suggestions(&workspace),
+        };
+
+        let (json_path, md_path) = write_onboard_report(&workspace, &report).unwrap();
+        assert!(
+            json_path.exists(),
+            "expected json report at {}",
+            json_path.display()
+        );
+        assert!(
+            md_path.exists(),
+            "expected markdown report at {}",
+            md_path.display()
+        );
+
+        let md = std::fs::read_to_string(md_path).unwrap();
+        assert!(md.contains("LoopForge Onboard Report"));
+        assert!(md.contains("Suggested Next Steps"));
     }
 
     #[test]
