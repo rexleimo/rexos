@@ -6,7 +6,7 @@
 
 Start with one command, get a real artifact, and keep a reproducible trail from prompt to deliverable.
 
-[Start with `onboard`](tutorials/new-user-walkthrough.md){ .md-button .md-button--primary }
+[Start with onboard](tutorials/new-user-walkthrough.md){ .md-button .md-button--primary }
 [Starter tasks](tutorials/first-day-starter-tasks.md){ .md-button }
 [Troubleshooting](how-to/onboarding-troubleshooting.md){ .md-button }
 [Why LoopForge](explanation/why-loopforge.md){ .md-button }

@@ -6,7 +6,7 @@
 
 先用一条命令跑通第一条链路，再从 prompt 走到真实产物与可复现轨迹。
 
-[`onboard` 一键上手](tutorials/new-user-walkthrough.md){ .md-button .md-button--primary }
+[onboard 一键上手](tutorials/new-user-walkthrough.md){ .md-button .md-button--primary }
 [Starter Tasks](tutorials/first-day-starter-tasks.md){ .md-button }
 [上手排障](how-to/onboarding-troubleshooting.md){ .md-button }
 [为什么是 LoopForge](explanation/why-loopforge.md){ .md-button }
