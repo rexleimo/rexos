@@ -98,6 +98,14 @@ impl OnboardStarter {
             }
         }
     }
+
+    fn expected_artifact(self) -> &'static str {
+        match self {
+            OnboardStarter::Hello => "hello.txt",
+            OnboardStarter::WorkspaceBrief => "notes/workspace-brief.md",
+            OnboardStarter::RepoOnboarding => "notes/repo-onboarding.md",
+        }
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -681,6 +689,66 @@ async fn main() -> anyhow::Result<()> {
             };
             println!("{out}");
             eprintln!("[loopforge] session_id={session_id}");
+
+            if let Err(err) = verify_onboard_artifact(&workspace, prompt.as_deref(), starter) {
+                let err_msg = err.to_string();
+                let failure_category = "expected_artifact_missing".to_string();
+                match record_onboard_attempt(
+                    &paths,
+                    &workspace,
+                    &session_id,
+                    false,
+                    Some(&failure_category),
+                    Some(&err_msg),
+                ) {
+                    Ok(metrics) => {
+                        eprintln!(
+                            "onboard metrics: success_rate={}/{}",
+                            metrics.first_task_success, metrics.attempted_first_task
+                        );
+                        eprintln!(
+                            "onboard metrics path: {}",
+                            paths.base_dir.join("onboard-metrics.json").display()
+                        );
+                        eprintln!(
+                            "onboard events path: {}",
+                            paths.base_dir.join("onboard-events.jsonl").display()
+                        );
+                    }
+                    Err(log_err) => {
+                        eprintln!("onboard: failed to persist metrics: {log_err}");
+                    }
+                }
+                let report = OnboardReportArtifact {
+                    generated_at_ms: now_ms(),
+                    workspace: workspace.display().to_string(),
+                    config_path: config_report.config_path.clone(),
+                    config_valid: true,
+                    starter: starter.as_str().to_string(),
+                    effective_prompt: effective_prompt.clone(),
+                    doctor_summary: doctor_report.summary.clone(),
+                    doctor_next_actions: doctor_report.next_actions.clone(),
+                    task: OnboardTaskReport {
+                        status: "failed".to_string(),
+                        session_id: Some(session_id.clone()),
+                        failure_category: Some(failure_category.clone()),
+                        error: Some(err_msg.clone()),
+                    },
+                    recommended_next_command: recommended_retry_command(
+                        &workspace,
+                        &session_id,
+                        &effective_prompt,
+                    ),
+                    starter_suggestions: build_onboard_starter_suggestions(&workspace),
+                };
+                let (json_path, md_path) = write_onboard_report(&workspace, &report)?;
+                print_onboard_report_summary(&report, &json_path, &md_path);
+                eprintln!(
+                    "onboard: first agent run finished without the expected starter artifact"
+                );
+                return Err(err);
+            }
+
             match record_onboard_attempt(&paths, &workspace, &session_id, true, None, None) {
                 Ok(metrics) => {
                     println!(
@@ -1361,6 +1429,52 @@ fn resolve_onboard_prompt(prompt: Option<&str>, starter: OnboardStarter) -> Stri
         .unwrap_or_else(|| starter.default_prompt().to_string())
 }
 
+fn starter_expected_artifact(
+    prompt: Option<&str>,
+    starter: OnboardStarter,
+) -> Option<&'static str> {
+    let has_explicit_prompt = prompt
+        .map(str::trim)
+        .map(|value| !value.is_empty())
+        .unwrap_or(false);
+    if has_explicit_prompt {
+        None
+    } else {
+        Some(starter.expected_artifact())
+    }
+}
+
+fn verify_onboard_artifact(
+    workspace: &Path,
+    prompt: Option<&str>,
+    starter: OnboardStarter,
+) -> anyhow::Result<Option<String>> {
+    let Some(relative_path) = starter_expected_artifact(prompt, starter) else {
+        return Ok(None);
+    };
+
+    let artifact_path = workspace.join(relative_path);
+    if artifact_path.is_file() {
+        return Ok(Some(relative_path.to_string()));
+    }
+
+    anyhow::bail!(
+        "starter `{}` did not create expected artifact `{}` in `{}`",
+        starter.as_str(),
+        relative_path,
+        workspace.display()
+    );
+}
+
+fn recommended_retry_command(workspace: &Path, session_id: &str, prompt: &str) -> String {
+    format!(
+        "loopforge agent run --workspace {} --session {} --prompt {}",
+        shell_quote(&workspace.display().to_string()),
+        shell_quote(session_id),
+        shell_quote(prompt)
+    )
+}
+
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
@@ -2031,6 +2145,49 @@ edition = "2021"
     fn resolve_onboard_prompt_prefers_explicit_prompt() {
         let prompt = resolve_onboard_prompt(Some("Create notes/custom.md"), OnboardStarter::Hello);
         assert_eq!(prompt, "Create notes/custom.md");
+    }
+
+    #[test]
+    fn starter_expected_artifact_tracks_default_starters() {
+        assert_eq!(
+            starter_expected_artifact(None, OnboardStarter::WorkspaceBrief),
+            Some("notes/workspace-brief.md")
+        );
+        assert_eq!(
+            starter_expected_artifact(None, OnboardStarter::RepoOnboarding),
+            Some("notes/repo-onboarding.md")
+        );
+        assert_eq!(
+            starter_expected_artifact(Some("Create notes/custom.md"), OnboardStarter::Hello),
+            None
+        );
+    }
+
+    #[test]
+    fn verify_onboard_artifact_requires_default_starter_output() {
+        let tmp = tempdir().unwrap();
+        let workspace = tmp.path().join("demo-work");
+        std::fs::create_dir_all(&workspace).unwrap();
+
+        let err = verify_onboard_artifact(&workspace, None, OnboardStarter::WorkspaceBrief)
+            .expect_err("missing starter artifact should fail");
+        assert!(err.to_string().contains("notes/workspace-brief.md"));
+
+        std::fs::create_dir_all(workspace.join("notes")).unwrap();
+        std::fs::write(workspace.join("notes/workspace-brief.md"), "brief").unwrap();
+        assert_eq!(
+            verify_onboard_artifact(&workspace, None, OnboardStarter::WorkspaceBrief).unwrap(),
+            Some("notes/workspace-brief.md".to_string())
+        );
+        assert_eq!(
+            verify_onboard_artifact(
+                &workspace,
+                Some("Create notes/custom.md"),
+                OnboardStarter::WorkspaceBrief,
+            )
+            .unwrap(),
+            None
+        );
     }
 
     #[test]

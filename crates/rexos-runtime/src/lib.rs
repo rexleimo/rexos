@@ -361,7 +361,8 @@ impl AgentRuntime {
                 let started_at = std::time::Instant::now();
                 if let Some(allowed) = allowed_lookup.as_ref() {
                     if !allowed.contains(call.function.name.as_str()) {
-                        let err = format!("tool not allowed for this session: {}", call.function.name);
+                        let err =
+                            format!("tool not allowed for this session: {}", call.function.name);
                         let _ = self.append_acp_event(AcpEventRecord {
                             id: uuid::Uuid::new_v4().to_string(),
                             session_id: Some(session_id.to_string()),
@@ -469,14 +470,15 @@ impl AgentRuntime {
                                 .context("hand_deactivate")?
                         }
                         "task_post" => {
-                            let args: TaskPostToolArgs = serde_json::from_str(&args_json)
-                                .context("parse task_post args")?;
+                            let args: TaskPostToolArgs =
+                                serde_json::from_str(&args_json).context("parse task_post args")?;
                             self.task_post(args).context("task_post")?
                         }
                         "task_list" => {
-                            let args: TaskListToolArgs = serde_json::from_str(&args_json)
-                                .context("parse task_list args")?;
-                            self.task_list(args.status.as_deref()).context("task_list")?
+                            let args: TaskListToolArgs =
+                                serde_json::from_str(&args_json).context("parse task_list args")?;
+                            self.task_list(args.status.as_deref())
+                                .context("task_list")?
                         }
                         "task_claim" => {
                             let args: TaskClaimToolArgs = serde_json::from_str(&args_json)
@@ -526,14 +528,9 @@ impl AgentRuntime {
                         "workflow_run" => {
                             let args: WorkflowRunToolArgs = serde_json::from_str(&args_json)
                                 .context("parse workflow_run args")?;
-                            self.workflow_run(
-                                &workspace_root,
-                                session_id,
-                                kind,
-                                args,
-                            )
-                            .await
-                            .context("workflow_run")?
+                            self.workflow_run(&workspace_root, session_id, kind, args)
+                                .await
+                                .context("workflow_run")?
                         }
                         "knowledge_add_entity" => {
                             let args: KnowledgeAddEntityToolArgs = serde_json::from_str(&args_json)
@@ -551,7 +548,8 @@ impl AgentRuntime {
                         "knowledge_query" => {
                             let args: KnowledgeQueryToolArgs = serde_json::from_str(&args_json)
                                 .context("parse knowledge_query args")?;
-                            self.knowledge_query(&args.query).context("knowledge_query")?
+                            self.knowledge_query(&args.query)
+                                .context("knowledge_query")?
                         }
                         _ => tools
                             .call(&call.function.name, &args_json)
@@ -590,7 +588,8 @@ impl AgentRuntime {
                     }
                 };
 
-                let (output, truncated) = truncate_tool_result_with_flag(output, MAX_TOOL_RESULT_CHARS);
+                let (output, truncated) =
+                    truncate_tool_result_with_flag(output, MAX_TOOL_RESULT_CHARS);
                 let _ = self.append_tool_audit(ToolAuditRecord {
                     session_id: session_id.to_string(),
                     tool_name: call.function.name.clone(),
@@ -748,10 +747,7 @@ impl AgentRuntime {
         Ok(())
     }
 
-    fn load_session_allowed_skills(
-        &self,
-        session_id: &str,
-    ) -> anyhow::Result<Option<Vec<String>>> {
+    fn load_session_allowed_skills(&self, session_id: &str) -> anyhow::Result<Option<Vec<String>>> {
         let raw = self
             .memory
             .kv_get(&Self::session_allowed_skills_key(session_id))
@@ -1120,7 +1116,8 @@ impl AgentRuntime {
             let args_json = if step.arguments.is_null() {
                 "{}".to_string()
             } else {
-                serde_json::to_string(&step.arguments).context("serialize workflow step arguments")?
+                serde_json::to_string(&step.arguments)
+                    .context("serialize workflow step arguments")?
             };
 
             let step_res: anyhow::Result<String> = async {
@@ -1253,7 +1250,8 @@ impl AgentRuntime {
                 .with_context(|| format!("create workflow dir {}", parent.display()))?;
         }
         let raw = serde_json::to_string_pretty(state).context("serialize workflow state")?;
-        std::fs::write(path, raw).with_context(|| format!("write workflow state {}", path.display()))
+        std::fs::write(path, raw)
+            .with_context(|| format!("write workflow state {}", path.display()))
     }
 
     fn agents_index(&self) -> anyhow::Result<Vec<String>> {
@@ -1949,7 +1947,11 @@ impl AgentRuntime {
         Ok(())
     }
 
-    fn channel_send(&self, session_id: Option<&str>, args: ChannelSendToolArgs) -> anyhow::Result<String> {
+    fn channel_send(
+        &self,
+        session_id: Option<&str>,
+        args: ChannelSendToolArgs,
+    ) -> anyhow::Result<String> {
         if args.channel.trim().is_empty() {
             return Ok("error: channel is empty".to_string());
         }
@@ -2553,6 +2555,7 @@ struct KnowledgeQueryToolArgs {
 
 #[derive(Debug, serde::Deserialize)]
 struct JsonToolCall {
+    #[serde(alias = "function_name")]
     name: String,
     #[serde(alias = "args")]
     #[serde(default)]
@@ -2574,6 +2577,7 @@ fn normalize_tool_arguments(tool_name: &str, raw_arguments_json: &str) -> String
         .get("function")
         .and_then(|v| v.as_str())
         .or_else(|| obj.get("name").and_then(|v| v.as_str()))
+        .or_else(|| obj.get("function_name").and_then(|v| v.as_str()))
         .map(|name| name == tool_name)
         .unwrap_or(true);
     if !matches_name {

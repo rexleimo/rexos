@@ -35,7 +35,8 @@ Behavior:
 2. validates config
 3. runs `loopforge doctor`
 4. optionally runs one first agent task
-5. writes onboarding reports into the workspace:
+5. for built-in starters, verifies the expected starter artifact was actually created before reporting success
+6. writes onboarding reports into the workspace:
    - `.loopforge/onboard-report.json`
    - `.loopforge/onboard-report.md`
 

@@ -35,7 +35,8 @@ loopforge onboard --workspace loopforge-onboard-demo
 2. 校验配置
 3. 运行 `loopforge doctor`
 4. 可选地执行首个 agent 任务
-5. 在 workspace 里生成 onboarding 报告：
+5. 对内置 starter，只有真的生成了目标产物才会判定成功
+6. 在 workspace 里生成 onboarding 报告：
    - `.loopforge/onboard-report.json`
    - `.loopforge/onboard-report.md`
 

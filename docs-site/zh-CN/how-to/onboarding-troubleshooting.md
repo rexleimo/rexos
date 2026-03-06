@@ -63,7 +63,20 @@ ollama list
 - 设置 `LOOPFORGE_BROWSER_CHROME_PATH`，或
 - 设置 `LOOPFORGE_BROWSER_CDP_HTTP` 指向可用的 Chromium DevTools 端点
 
-## 5) 先看哪个文件？
+## 5) Starter 显示成功，但目标文件没生成
+
+现象：
+
+- `onboard-report.md` 里出现 `expected_artifact_missing`
+- `workspace-brief` 之类的内置 starter 没有生成目标文件
+
+处理方式：
+
+- 先看 `<workspace>/.loopforge/onboard-report.md` 中保存的 session id
+- 用报告里推荐的 `loopforge agent run ... --session ...` 命令重试同一个任务
+- 如果 assistant 只是打印了类似工具调用的 JSON 文本，升级到这个修复版本后再试
+
+## 6) 先看哪个文件？
 
 先打开最近一次 workspace 报告：
 

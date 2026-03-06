@@ -14,6 +14,10 @@ All notable user-visible changes are documented in this file.
   - New CLI command group: `loopforge skills list|show|doctor|run`
   - New docs pages: skills reference and skills quickstart (EN + ZH)
 
+### Fixed
+
+- `loopforge onboard` no longer reports built-in starter success unless the expected artifact is actually created, and runtime JSON fallback now recognizes `function_name`-style tool calls emitted by real Ollama-compatible models.
+
 ## [1.1.0] - 2026-03-06
 
 ### Added

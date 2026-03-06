@@ -63,7 +63,20 @@ What to do:
 - set `LOOPFORGE_BROWSER_CHROME_PATH`, or
 - point `LOOPFORGE_BROWSER_CDP_HTTP` to a live Chromium DevTools endpoint
 
-## 5) What file should I inspect first?
+## 5) Starter says success but the expected file is missing
+
+Symptoms:
+
+- `onboard-report.md` shows `expected_artifact_missing`
+- built-in starters like `workspace-brief` do not create their target file
+
+What to do:
+
+- inspect the saved session id in `<workspace>/.loopforge/onboard-report.md`
+- retry the same task with the recommended `loopforge agent run ... --session ...` command
+- if the assistant only printed JSON-like tool text, upgrade to this fix and retry
+
+## 6) What file should I inspect first?
 
 Open the most recent workspace report:
 
