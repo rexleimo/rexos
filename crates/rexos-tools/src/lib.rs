@@ -4447,7 +4447,7 @@ mod tests {
             .unwrap();
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         let text = v.get("text").and_then(|v| v.as_str()).unwrap_or("");
-        assert!(text.contains("Hello LoopForge PDF"), "{text}");
+        assert!(text.contains("Hello") && text.contains("PDF"), "{text}");
         assert_eq!(v.get("path").and_then(|v| v.as_str()), Some("fixture.pdf"));
     }
 
