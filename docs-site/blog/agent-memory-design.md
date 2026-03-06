@@ -165,6 +165,125 @@ def retrieve_context(query: str, max_tokens: int = 8000) -> str:
     return truncate_to_token_limit(context, max_tokens)
 ```
 
+## 完整实现示例
+
+```python
+# memory_system.py
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
+import sqlite3
+import time
+import pickle
+
+class MemoryType(Enum):
+    WORKING = "working"
+    SESSION = "session"
+    PERSISTENT = "persistent"
+
+@dataclass
+class Memory:
+    id: Optional[int]
+    memory_type: MemoryType
+    content: str
+    embedding: list[float]
+    created_at: float
+    workspace_id: str
+
+class MemorySystem:
+    def __init__(self, db_path: str):
+        self.conn = sqlite3.connect(db_path)
+        self._init_db()
+
+    def _init_db(self):
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS memories (
+                id INTEGER PRIMARY KEY,
+                memory_type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                embedding BLOB,
+                created_at REAL NOT NULL,
+                workspace_id TEXT NOT NULL
+            )
+        """)
+        self.conn.commit()
+
+    def save_memory(
+        self,
+        memory_type: MemoryType,
+        content: str,
+        embedding: list[float],
+        workspace_id: str
+    ) -> int:
+        """保存记忆"""
+        cursor = self.conn.execute("""
+            INSERT INTO memories (memory_type, content, embedding, created_at, workspace_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (
+            memory_type.value,
+            content,
+            pickle.dumps(embedding),
+            time.time(),
+            workspace_id
+        ))
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def retrieve(
+        self,
+        query_embedding: list[float],
+        workspace_id: str,
+        memory_types: list[MemoryType] = None,
+        top_k: int = 5
+    ) -> list[Memory]:
+        """检索记忆"""
+        if memory_types is None:
+            memory_types = [MemoryType.PERSISTENT]
+
+        type_values = [t.value for t in memory_types]
+        placeholders = ",".join("?" * len(type_values))
+
+        cursor = self.conn.execute(f"""
+            SELECT id, memory_type, content, embedding, created_at
+            FROM memories
+            WHERE workspace_id = ? AND memory_type IN ({placeholders})
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, [workspace_id] + type_values + [top_k])
+
+        return [
+            Memory(
+                id=row[0],
+                memory_type=MemoryType(row[1]),
+                content=row[2],
+                embedding=pickle.loads(row[3]) if row[3] else [],
+                created_at=row[4],
+                workspace_id=workspace_id
+            )
+            for row in cursor
+        ]
+
+    def build_context(self, query: str, workspace_id: str) -> str:
+        """构建完整上下文"""
+        query_embedding = self._simple_embed(query)
+
+        # 检索持久记忆 + 会话记忆
+        persistent = self.retrieve(query_embedding, workspace_id, [MemoryType.PERSISTENT], top_k=3)
+        session = self.retrieve(query_embedding, workspace_id, [MemoryType.SESSION], top_k=5)
+
+        parts = ["## 相关记忆"]
+        for m in persistent + session:
+            parts.append(f"- [{m.memory_type.value}] {m.content[:200]}")
+
+        return "\n".join(parts)
+
+    def _simple_embed(self, text: str) -> list[float]:
+        """简化版 embedding"""
+        import hashlib
+        h = hashlib.sha256(text.encode()).digest()
+        return [b / 255.0 for b in h[:32]]
+```
+
 ## LoopForge 的记忆设计
 
 作为本地优先的 Agent OS，LoopForge 实现了完整的多层记忆系统：
@@ -238,6 +357,6 @@ Agent 的记忆不是"记住所有事情"，而是**在对的时刻想起对的�
 
 **相关链接**
 
-- [LoopForge 记忆模块源码](../explanation/memory-subsystem.md)
-- [向量检索最佳实践](../how-to/vector-search.md)
+- [LoopForge 记忆模块源码（rexos-memory）](https://github.com/rexleimo/LoopForge/tree/main/meos/crates/rexos-memory)
+- [LoopForge 概念与记忆模型](../explanation/concepts.md)
 - [Harness 教程：长任务执行](../tutorials/harness-long-task.md)

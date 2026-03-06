@@ -159,6 +159,107 @@ loopforge agent run \
   --prompt "阅读 src/main.rs，分析代码结构，写一份500字的架构说明"
 ```
 
+## 进阶：自定义 MCP Server
+
+如果官方 Server 不满足需求，可以自己写：
+
+### 1. Python 实现
+
+```python
+# my_mcp_server.py
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from pydantic import AnyUrl
+import json
+
+app = Server("my-custom-server")
+
+@app.list_resources()
+async def list_resources():
+    return [
+        Resource(
+            uri=AnyUrl("myapp://config"),
+            name="app_config",
+            description="Application configuration"
+        )
+    ]
+
+@app.read_resource()
+async def read_resource(uri: AnyUrl):
+    if uri == "myapp://config":
+        with open("config.json") as f:
+            return json.load(f)
+    raise ValueError(f"Unknown resource: {uri}")
+
+@app.list_tools()
+async def list_tools():
+    return [
+        Tool(
+            name="analyze_code",
+            description="Analyze Python code for issues",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "file_path": {"type": "string"}
+                },
+                "required": ["file_path"]
+            }
+        )
+    ]
+
+@app.call_tool()
+async def call_tool(name: str, arguments: dict):
+    if name == "analyze_code":
+        # 实现代码分析逻辑
+        return analyze_python(arguments["file_path"])
+    raise ValueError(f"Unknown tool: {name}")
+
+if __name__ == "__main__":
+    stdio_server.run(app)
+```
+
+### 2. 注册到 LoopForge
+
+```json
+{
+  "servers": {
+    "my-custom": {
+      "command": "python",
+      "args": ["/path/to/my_mcp_server.py"]
+    }
+  }
+}
+```
+
+### 3. 更多官方 MCP Server
+
+| Server | 功能 |
+|--------|------|
+| `@modelcontextprotocol/server-filesystem` | 文件系统操作 |
+| `@modelcontextprotocol/server-git` | Git 操作 |
+| `@modelcontextprotocol/server-github` | GitHub API |
+| `@modelcontextprotocol/server-brave-search` | 网页搜索 |
+| `@modelcontextprotocol/server-sqlite` | SQLite 数据库 |
+| `@modelcontextprotocol/server-postgres` | PostgreSQL |
+| `@modelcontextprotocol/server-memory` | 知识图谱记忆 |
+
+## 常见问题
+
+### Q: MCP 和 API 有什么区别？
+
+API 是"你问我答"，MCP 是"我知我能"。MCP 让 AI 知道自己有什么工具可用，不需要每次都通过 prompt 告知。
+
+### Q: 安全吗？
+
+MCP 本身是协议，安全取决于 Server 实现。建议：
+- 本地开发用 filesystem server
+- 生产环境用细粒度权限控制
+- 不推荐直接暴露 MCP Server 到公网
+
+### Q: 支持流式输出吗？
+
+支持。MCP 基于 JSON-RPC 2.0，支持 `server->client` 通知，可以实现实时进度更新。
+
 ## 总结
 
 MCP 不仅仅是一个协议——它是 AI 从"问答助手"进化到"执行引擎"的关键一步。
