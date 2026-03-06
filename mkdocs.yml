@@ -217,6 +217,7 @@ nav:
           - Wikipedia Summary: how-to/browser-use-cases/wikipedia-summary.md
   - Blog:
       - Index: blog/index.md
+      - LoopForge v1.0.0 Release Notes: blog/loopforge-v1-0-0-release-notes.md
       - MCP Integration Guide: blog/mcp-integration-guide.md
       - Agent Memory Design: blog/agent-memory-design.md
       - Safe Code Execution: blog/safe-code-execution.md
