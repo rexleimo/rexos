@@ -4,6 +4,18 @@ use rexos_kernel::security::{LeakMode, SecurityConfig};
 
 const BLOCKED_ERROR: &str = "tool output blocked by leak guard";
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct SensitiveEnvValue {
+    detector: String,
+    value: String,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct LeakGuard {
+    mode: LeakMode,
+    sensitive_env_values: Vec<SensitiveEnvValue>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub(crate) struct LeakGuardAudit {
     pub(crate) mode: String,
@@ -34,58 +46,90 @@ struct LeakMatch {
     detector: String,
 }
 
-pub(crate) fn inspect_tool_output(content: String, security: &SecurityConfig) -> LeakGuardVerdict {
-    if matches!(security.leaks.mode, LeakMode::Off) {
-        return LeakGuardVerdict::Allowed {
-            content,
-            audit: None,
-        };
+impl LeakGuard {
+    pub(crate) fn from_security(security: &SecurityConfig) -> Self {
+        Self {
+            mode: security.leaks.mode.clone(),
+            sensitive_env_values: collect_sensitive_env_values(),
+        }
     }
 
-    let matches = collect_matches(&content);
-    if matches.is_empty() {
-        return LeakGuardVerdict::Allowed {
-            content,
-            audit: None,
-        };
-    }
+    pub(crate) fn inspect_tool_output(&self, content: String) -> LeakGuardVerdict {
+        if matches!(self.mode, LeakMode::Off) {
+            return LeakGuardVerdict::Allowed {
+                content,
+                audit: None,
+            };
+        }
 
-    let detectors = detector_labels(&matches);
-    let mode = mode_label(&security.leaks.mode).to_string();
+        let matches = collect_matches(&content, &self.sensitive_env_values);
+        if matches.is_empty() {
+            return LeakGuardVerdict::Allowed {
+                content,
+                audit: None,
+            };
+        }
 
-    match security.leaks.mode {
-        LeakMode::Off => LeakGuardVerdict::Allowed {
-            content,
-            audit: None,
-        },
-        LeakMode::Warn => LeakGuardVerdict::Allowed {
-            content,
-            audit: Some(LeakGuardAudit {
-                mode,
-                detectors,
-                redacted: false,
-                blocked: false,
-            }),
-        },
-        LeakMode::Redact => LeakGuardVerdict::Allowed {
-            content: redact_content(&content, &matches),
-            audit: Some(LeakGuardAudit {
-                mode,
-                detectors,
-                redacted: true,
-                blocked: false,
-            }),
-        },
-        LeakMode::Enforce => LeakGuardVerdict::Blocked {
-            error: BLOCKED_ERROR.to_string(),
-            audit: LeakGuardAudit {
-                mode,
-                detectors,
-                redacted: false,
-                blocked: true,
+        let detectors = detector_labels(&matches);
+        let mode = mode_label(&self.mode).to_string();
+
+        match self.mode {
+            LeakMode::Off => LeakGuardVerdict::Allowed {
+                content,
+                audit: None,
             },
-        },
+            LeakMode::Warn => LeakGuardVerdict::Allowed {
+                content,
+                audit: Some(LeakGuardAudit {
+                    mode,
+                    detectors,
+                    redacted: false,
+                    blocked: false,
+                }),
+            },
+            LeakMode::Redact => LeakGuardVerdict::Allowed {
+                content: redact_content(&content, &matches),
+                audit: Some(LeakGuardAudit {
+                    mode,
+                    detectors,
+                    redacted: true,
+                    blocked: false,
+                }),
+            },
+            LeakMode::Enforce => LeakGuardVerdict::Blocked {
+                error: BLOCKED_ERROR.to_string(),
+                audit: LeakGuardAudit {
+                    mode,
+                    detectors,
+                    redacted: false,
+                    blocked: true,
+                },
+            },
+        }
     }
+}
+
+fn collect_sensitive_env_values() -> Vec<SensitiveEnvValue> {
+    let mut out = Vec::new();
+    let mut seen_values = BTreeSet::new();
+
+    for (name, value) in std::env::vars() {
+        if !is_sensitive_env_name(&name) {
+            continue;
+        }
+        if value.trim().len() < 8 || value.contains(char::is_whitespace) {
+            continue;
+        }
+        if !seen_values.insert(value.clone()) {
+            continue;
+        }
+        out.push(SensitiveEnvValue {
+            detector: format!("env:{name}"),
+            value,
+        });
+    }
+
+    out
 }
 
 fn detector_labels(matches: &[LeakMatch]) -> Vec<String> {
@@ -96,9 +140,9 @@ fn detector_labels(matches: &[LeakMatch]) -> Vec<String> {
     out.into_iter().collect()
 }
 
-fn collect_matches(content: &str) -> Vec<LeakMatch> {
+fn collect_matches(content: &str, sensitive_env_values: &[SensitiveEnvValue]) -> Vec<LeakMatch> {
     let mut out = Vec::new();
-    out.extend(find_sensitive_env_matches(content));
+    out.extend(find_sensitive_env_matches(content, sensitive_env_values));
     out.extend(find_prefixed_token_matches(content, "sk-", 20, "token:sk"));
     out.extend(find_prefixed_token_matches(
         content,
@@ -121,24 +165,14 @@ fn collect_matches(content: &str) -> Vec<LeakMatch> {
     merge_matches(out)
 }
 
-fn find_sensitive_env_matches(content: &str) -> Vec<LeakMatch> {
+fn find_sensitive_env_matches(
+    content: &str,
+    sensitive_env_values: &[SensitiveEnvValue],
+) -> Vec<LeakMatch> {
     let mut matches = Vec::new();
-    let mut seen_values = BTreeSet::new();
-
-    for (name, value) in std::env::vars() {
-        if !is_sensitive_env_name(&name) {
-            continue;
-        }
-        if value.trim().len() < 8 || value.contains(char::is_whitespace) {
-            continue;
-        }
-        if !seen_values.insert(value.clone()) {
-            continue;
-        }
-
-        matches.extend(find_exact_matches(content, &value, format!("env:{name}")));
+    for item in sensitive_env_values {
+        matches.extend(find_exact_matches(content, &item.value, item.detector.clone()));
     }
-
     matches
 }
 
@@ -259,7 +293,7 @@ fn mode_label(mode: &LeakMode) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{inspect_tool_output, LeakGuardVerdict};
+    use super::{LeakGuard, LeakGuardVerdict};
     use rexos_kernel::security::{LeakMode, SecurityConfig};
 
     struct EnvVarGuard {
@@ -285,31 +319,32 @@ mod tests {
         }
     }
 
-    fn security(mode: LeakMode) -> SecurityConfig {
+    fn leak_guard(mode: LeakMode) -> LeakGuard {
         let mut cfg = SecurityConfig::default();
         cfg.leaks.mode = mode;
-        cfg
+        LeakGuard::from_security(&cfg)
     }
 
     #[test]
     fn warn_mode_reports_detected_env_secret_without_mutating_output() {
-        let _guard = EnvVarGuard::set("LOOPFORGE_TEST_SECRET", "super-secret-value-12345");
-        let verdict = inspect_tool_output(
-            "value=super-secret-value-12345".to_string(),
-            &security(LeakMode::Warn),
+        let _guard = EnvVarGuard::set(
+            "LOOPFORGE_TEST_SECRET_WARN",
+            "super-secret-warn-value-12345",
         );
+        let verdict = leak_guard(LeakMode::Warn)
+            .inspect_tool_output("value=super-secret-warn-value-12345".to_string());
 
         match verdict {
             LeakGuardVerdict::Allowed {
                 content,
                 audit: Some(audit),
             } => {
-                assert_eq!(content, "value=super-secret-value-12345");
+                assert_eq!(content, "value=super-secret-warn-value-12345");
                 assert_eq!(audit.mode, "warn");
                 assert!(audit
                     .detectors
                     .iter()
-                    .any(|d| d == "env:LOOPFORGE_TEST_SECRET"));
+                    .any(|d| d == "env:LOOPFORGE_TEST_SECRET_WARN"));
                 assert!(!audit.redacted);
                 assert!(!audit.blocked);
             }
@@ -319,20 +354,21 @@ mod tests {
 
     #[test]
     fn redact_mode_masks_detected_secret_before_returning_content() {
-        let _guard = EnvVarGuard::set("LOOPFORGE_TEST_SECRET", "super-secret-value-12345");
-        let verdict = inspect_tool_output(
-            "prefix super-secret-value-12345 suffix".to_string(),
-            &security(LeakMode::Redact),
+        let _guard = EnvVarGuard::set(
+            "LOOPFORGE_TEST_SECRET_REDACT",
+            "super-secret-redact-value-12345",
         );
+        let verdict = leak_guard(LeakMode::Redact)
+            .inspect_tool_output("prefix super-secret-redact-value-12345 suffix".to_string());
 
         match verdict {
             LeakGuardVerdict::Allowed {
                 content,
                 audit: Some(audit),
             } => {
-                assert!(!content.contains("super-secret-value-12345"), "{content}");
+                assert!(!content.contains("super-secret-redact-value-12345"), "{content}");
                 assert!(
-                    content.contains("[redacted:env:LOOPFORGE_TEST_SECRET]"),
+                    content.contains("[redacted:env:LOOPFORGE_TEST_SECRET_REDACT]"),
                     "{content}"
                 );
                 assert_eq!(audit.mode, "redact");
@@ -344,11 +380,12 @@ mod tests {
 
     #[test]
     fn enforce_mode_blocks_detected_secret_with_stable_error() {
-        let _guard = EnvVarGuard::set("LOOPFORGE_TEST_SECRET", "super-secret-value-12345");
-        let verdict = inspect_tool_output(
-            "prefix super-secret-value-12345 suffix".to_string(),
-            &security(LeakMode::Enforce),
+        let _guard = EnvVarGuard::set(
+            "LOOPFORGE_TEST_SECRET_ENFORCE",
+            "super-secret-enforce-value-12345",
         );
+        let verdict = leak_guard(LeakMode::Enforce)
+            .inspect_tool_output("prefix super-secret-enforce-value-12345 suffix".to_string());
 
         match verdict {
             LeakGuardVerdict::Blocked { error, audit } => {
@@ -358,18 +395,36 @@ mod tests {
                 assert!(audit
                     .detectors
                     .iter()
-                    .any(|d| d == "env:LOOPFORGE_TEST_SECRET"));
+                    .any(|d| d == "env:LOOPFORGE_TEST_SECRET_ENFORCE"));
             }
             other => panic!("expected enforce verdict, got: {other:?}"),
         }
     }
 
     #[test]
-    fn redact_mode_masks_common_sk_prefixed_tokens() {
-        let verdict = inspect_tool_output(
-            "token=sk-test-abcdefghijklmnopqrstuvwxyz123456".to_string(),
-            &security(LeakMode::Redact),
+    fn leak_guard_snapshots_env_values_at_construction() {
+        let _guard = EnvVarGuard::set(
+            "LOOPFORGE_TEST_SECRET_SNAPSHOT",
+            "super-secret-snapshot-value-12345",
         );
+        let leak_guard = leak_guard(LeakMode::Redact);
+        std::env::remove_var("LOOPFORGE_TEST_SECRET_SNAPSHOT");
+
+        let verdict = leak_guard
+            .inspect_tool_output("prefix super-secret-snapshot-value-12345 suffix".to_string());
+
+        match verdict {
+            LeakGuardVerdict::Allowed { content, .. } => {
+                assert!(content.contains("[redacted:env:LOOPFORGE_TEST_SECRET_SNAPSHOT]"));
+            }
+            other => panic!("expected snapshot redact verdict, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn redact_mode_masks_common_sk_prefixed_tokens() {
+        let verdict = leak_guard(LeakMode::Redact)
+            .inspect_tool_output("token=sk-test-abcdefghijklmnopqrstuvwxyz123456".to_string());
 
         match verdict {
             LeakGuardVerdict::Allowed {

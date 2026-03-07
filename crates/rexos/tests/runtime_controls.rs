@@ -305,7 +305,7 @@ async fn leak_guard_redacts_tool_output_before_model_and_audit_persistence() {
         }))
     }
 
-    let _guard = EnvVarGuard::set("LOOPFORGE_TEST_SECRET", "super-secret-value-12345");
+    let _guard = EnvVarGuard::set("LOOPFORGE_TEST_SECRET_REDACT_RT", "super-secret-redact-rt-value-12345");
 
     let state = TestState::default();
     let state_for_asserts = state.clone();
@@ -321,7 +321,7 @@ async fn leak_guard_redacts_tool_output_before_model_and_audit_persistence() {
     let tmp = tempfile::tempdir().unwrap();
     let workspace = tmp.path().join("workspace");
     std::fs::create_dir_all(&workspace).unwrap();
-    std::fs::write(workspace.join("secret.txt"), "super-secret-value-12345").unwrap();
+    std::fs::write(workspace.join("secret.txt"), "super-secret-redact-rt-value-12345").unwrap();
 
     let paths = rexos::paths::RexosPaths {
         base_dir: tmp.path().join(".loopforge"),
@@ -332,6 +332,7 @@ async fn leak_guard_redacts_tool_output_before_model_and_audit_persistence() {
     let mut security = rexos::security::SecurityConfig::default();
     security.leaks.mode = rexos::security::LeakMode::Redact;
     let agent = test_agent_with_security(format!("http://{addr}/v1"), memory, security);
+    std::env::remove_var("LOOPFORGE_TEST_SECRET_REDACT_RT");
 
     let out = agent
         .run_session(
@@ -352,11 +353,11 @@ async fn leak_guard_redacts_tool_output_before_model_and_audit_persistence() {
     );
     let second_payload = serde_json::to_string(&payloads[1]).unwrap();
     assert!(
-        !second_payload.contains("super-secret-value-12345"),
+        !second_payload.contains("super-secret-redact-rt-value-12345"),
         "expected redacted model payload, got: {second_payload}"
     );
     assert!(
-        second_payload.contains("[redacted:env:LOOPFORGE_TEST_SECRET]"),
+        second_payload.contains("[redacted:env:LOOPFORGE_TEST_SECRET_REDACT_RT]"),
         "expected redaction marker in model payload, got: {second_payload}"
     );
 
@@ -368,11 +369,11 @@ async fn leak_guard_redacts_tool_output_before_model_and_audit_persistence() {
         .expect("expected tool message");
     let tool_content = tool_message.content.as_deref().unwrap_or("");
     assert!(
-        !tool_content.contains("super-secret-value-12345"),
+        !tool_content.contains("super-secret-redact-rt-value-12345"),
         "{tool_content}"
     );
     assert!(
-        tool_content.contains("[redacted:env:LOOPFORGE_TEST_SECRET]"),
+        tool_content.contains("[redacted:env:LOOPFORGE_TEST_SECRET_REDACT_RT]"),
         "{tool_content}"
     );
 
@@ -381,7 +382,7 @@ async fn leak_guard_redacts_tool_output_before_model_and_audit_persistence() {
         .unwrap()
         .unwrap_or_default();
     assert!(
-        !raw.contains("super-secret-value-12345"),
+        !raw.contains("super-secret-redact-rt-value-12345"),
         "tool audit leaked raw secret: {raw}"
     );
     let events: serde_json::Value = serde_json::from_str(&raw).unwrap();
@@ -430,7 +431,7 @@ async fn leak_guard_enforce_blocks_tool_output_without_persisting_secret() {
         }))
     }
 
-    let _guard = EnvVarGuard::set("LOOPFORGE_TEST_SECRET", "super-secret-value-12345");
+    let _guard = EnvVarGuard::set("LOOPFORGE_TEST_SECRET_ENFORCE_RT", "super-secret-enforce-rt-value-12345");
 
     let state = TestState::default();
     let state_for_asserts = state.clone();
@@ -446,7 +447,7 @@ async fn leak_guard_enforce_blocks_tool_output_without_persisting_secret() {
     let tmp = tempfile::tempdir().unwrap();
     let workspace = tmp.path().join("workspace");
     std::fs::create_dir_all(&workspace).unwrap();
-    std::fs::write(workspace.join("secret.txt"), "super-secret-value-12345").unwrap();
+    std::fs::write(workspace.join("secret.txt"), "super-secret-enforce-rt-value-12345").unwrap();
 
     let paths = rexos::paths::RexosPaths {
         base_dir: tmp.path().join(".loopforge"),
@@ -457,6 +458,7 @@ async fn leak_guard_enforce_blocks_tool_output_without_persisting_secret() {
     let mut security = rexos::security::SecurityConfig::default();
     security.leaks.mode = rexos::security::LeakMode::Enforce;
     let agent = test_agent_with_security(format!("http://{addr}/v1"), memory, security);
+    std::env::remove_var("LOOPFORGE_TEST_SECRET_ENFORCE_RT");
 
     let err = agent
         .run_session(
@@ -483,7 +485,7 @@ async fn leak_guard_enforce_blocks_tool_output_without_persisting_secret() {
         .unwrap()
         .unwrap_or_default();
     assert!(
-        !audit_raw.contains("super-secret-value-12345"),
+        !audit_raw.contains("super-secret-enforce-rt-value-12345"),
         "tool audit leaked raw secret: {audit_raw}"
     );
     let events: serde_json::Value = serde_json::from_str(&audit_raw).unwrap();
@@ -504,7 +506,7 @@ async fn leak_guard_enforce_blocks_tool_output_without_persisting_secret() {
         .unwrap()
         .unwrap_or_default();
     assert!(
-        !acp_raw.contains("super-secret-value-12345"),
+        !acp_raw.contains("super-secret-enforce-rt-value-12345"),
         "acp events leaked raw secret: {acp_raw}"
     );
     assert!(

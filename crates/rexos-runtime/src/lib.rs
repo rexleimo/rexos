@@ -41,7 +41,7 @@ use approval::{
     skill_approval_is_granted, skill_permissions_are_readonly, tool_approval_is_granted,
     tool_requires_approval, ApprovalMode,
 };
-use leak_guard::{inspect_tool_output, LeakGuardAudit, LeakGuardVerdict};
+use leak_guard::{LeakGuard, LeakGuardAudit, LeakGuardVerdict};
 pub use records::{AcpDeliveryCheckpointRecord, AcpEventRecord, SessionSkillPolicy};
 use records::{
     AgentFindToolArgs, AgentKillToolArgs, AgentRecord, AgentSendToolArgs, AgentSpawnToolArgs,
@@ -100,6 +100,7 @@ pub struct AgentRuntime {
     llms: LlmRegistry,
     router: ModelRouter,
     security: SecurityConfig,
+    leak_guard: LeakGuard,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -296,11 +297,13 @@ impl AgentRuntime {
         router: ModelRouter,
         security: SecurityConfig,
     ) -> Self {
+        let leak_guard = LeakGuard::from_security(&security);
         Self {
             memory,
             llms,
             router,
             security,
+            leak_guard,
         }
     }
 
@@ -625,7 +628,7 @@ impl AgentRuntime {
 
                 let duration_ms = started_at.elapsed().as_millis() as u64;
                 let (output, leak_guard) = match output_result {
-                    Ok(output) => match inspect_tool_output(output, &self.security) {
+                    Ok(output) => match self.leak_guard.inspect_tool_output(output) {
                         LeakGuardVerdict::Allowed { content, audit } => (content, audit),
                         LeakGuardVerdict::Blocked { error, audit } => {
                             let _ = self.append_acp_event(AcpEventRecord {
@@ -657,7 +660,7 @@ impl AgentRuntime {
                     Err(e) => {
                         let err_text = e.to_string();
                         let (safe_error, leak_guard) =
-                            match inspect_tool_output(err_text, &self.security) {
+                            match self.leak_guard.inspect_tool_output(err_text) {
                                 LeakGuardVerdict::Allowed { content, audit } => (content, audit),
                                 LeakGuardVerdict::Blocked { error, audit } => (error, Some(audit)),
                             };
