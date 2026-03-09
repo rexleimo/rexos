@@ -12,7 +12,7 @@
 
 ## 已同步到的版本（本机）
 
-- OpenClaw：`f2f561fab`（tag 见 `v2026.3.8`, `v2026.3.8-beta.1` 等）
+- OpenClaw：`98ea71aca`（`v2026.3.8-8`；包含 `51bae7512` kimi-coding 工具 schema 修复）
 - IronClaw：`d73e35c`（`feat: add AWS Bedrock LLM provider via native Converse API`）
 - OpenFang：`385aee8`（`fix streaming`；本地改动已先 stash）
 
@@ -54,7 +54,19 @@
 
 建议：**Extend（中期）**
 
-### 4) ACP provenance（来源元数据）与可见回执
+### 4) Provider 工具 schema 兼容：Anthropic tools 保持 native（不要误转成 OpenAI function）
+
+证据：
+- commit：`51bae7512`（`fix(kimi-coding): ... use native Anthropic tool schema`）
+- CHANGELOG：`Models/Kimi Coding: ... send anthropic-messages tools in native Anthropic format again`（避免 tool 调用退化成 XML/plain-text 伪调用）
+
+对 LoopForge 的映射：
+- LoopForge 已经区分 OpenAI-compat 与 Anthropic 等 provider 协议；当/若引入“Anthropic API 但厂商实现不一致”的 endpoint 时，建议引入**按 provider 的 capability**（例如 `anthropic_tool_schema_mode`）而不是全局 rewrite。
+- 安全默认：Anthropic 协议 → 原生 `input_schema` 工具定义；避免把工具强制改写为 OpenAI function，从而触发服务端降级或解析偏差。
+
+建议：**Extend（按需补 capability）**
+
+### 5) ACP provenance（来源元数据）与可见回执
 
 证据：
 - CHANGELOG：`ACP/Provenance`（`openclaw acp --provenance ...`）

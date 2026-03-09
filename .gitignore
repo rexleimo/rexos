@@ -17,6 +17,7 @@
 /.venv-docs/
 /tasks/
 **/__pycache__/
+/docs/internal/_assets/
 
 # OS files
 .DS_Store
