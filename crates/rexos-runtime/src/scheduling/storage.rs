@@ -35,6 +35,7 @@ impl AgentRuntime {
         Ok(jobs)
     }
 
+    #[cfg(test)]
     pub(super) fn cron_jobs_set(&self, jobs: &[CronJobRecord]) -> anyhow::Result<()> {
         let key = "rexos.cron.jobs";
         let raw = serde_json::to_string(jobs).context("serialize rexos.cron.jobs")?;
@@ -42,5 +43,25 @@ impl AgentRuntime {
             .kv_set(key, &raw)
             .context("kv_set rexos.cron.jobs")?;
         Ok(())
+    }
+
+    pub(super) fn cron_jobs_update<F, R>(&self, f: F) -> anyhow::Result<R>
+    where
+        F: FnOnce(&mut Vec<CronJobRecord>) -> anyhow::Result<R>,
+    {
+        let key = "rexos.cron.jobs";
+        let mut result: Option<R> = None;
+        self.memory
+            .kv_update(key, |raw| {
+                let raw = raw.unwrap_or_else(|| "[]".to_string());
+                let mut jobs: Vec<CronJobRecord> = serde_json::from_str(&raw).unwrap_or_default();
+                let r = f(&mut jobs)?;
+                result = Some(r);
+                let out = serde_json::to_string(&jobs).context("serialize rexos.cron.jobs")?;
+                Ok(Some(out))
+            })
+            .context("kv_update rexos.cron.jobs")?;
+
+        result.context("cron_jobs_update result not set")
     }
 }

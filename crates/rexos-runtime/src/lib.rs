@@ -53,6 +53,7 @@ pub struct AgentRuntime {
 }
 
 pub use outbox::{OutboxDispatcher, OutboxDrainSummary};
+pub use scheduling::runner::{CronRunnerConfig, CronRunnerTickSummary};
 
 impl AgentRuntime {
     pub fn new(memory: MemoryStore, llms: LlmRegistry, router: ModelRouter) -> Self {

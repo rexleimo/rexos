@@ -852,7 +852,12 @@ Prompt：
 
 ### `cron_create`
 
-存储一个 cron job 定义（当前是“存储定义”；是否会自动执行取决于你的 runner/daemon 集成）。
+存储一个 cron job 定义（持久化）。
+
+如果你运行 `loopforge cron worker`，LoopForge 会执行一个小的“内置支持子集”：
+
+- Schedule：`{ "kind": "every", "every_secs": <seconds> }`、`{ "kind": "at", "at_epoch_seconds": <epoch_seconds> }`
+- Action：`{ "kind": "system_event", ... }`、`{ "kind": "channel_send", ... }`（`channel_send` 使用 `delivery` 作为消息投递参数）
 
 工具调用：
 
@@ -869,7 +874,7 @@ Prompt：
 Prompt：
 
 ```text
-使用 cron_create 存储一个 demo cron 定义，然后 cron_list 并把输出写到 notes/cron.json。（注意：这里只是存储定义，不会自动跑，除非你有 runner。）
+使用 cron_create 存储一个 demo cron 定义，然后 cron_list 并把输出写到 notes/cron.json。（要执行已存储的 cron，请运行 `loopforge cron worker`。）
 ```
 
 ### `cron_list`

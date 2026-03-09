@@ -17,3 +17,6 @@ rexos-kernel = { path = "../rexos-kernel" }
 rexos-llm = { path = "../rexos-llm" }
 rexos-memory = { path = "../rexos-memory" }
 rexos-tools = { path = "../rexos-tools" }
+
+[dev-dependencies]
+tempfile.workspace = true

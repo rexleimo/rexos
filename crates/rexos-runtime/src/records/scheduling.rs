@@ -38,6 +38,18 @@ pub(crate) struct CronJobRecord {
     pub(crate) one_shot: bool,
     pub(crate) created_at: i64,
     pub(crate) enabled: bool,
+    #[serde(default)]
+    pub(crate) last_run_at: Option<i64>,
+    #[serde(default)]
+    pub(crate) next_run_at: Option<i64>,
+    #[serde(default)]
+    pub(crate) last_status: Option<String>,
+    #[serde(default)]
+    pub(crate) consecutive_errors: u32,
+    #[serde(default)]
+    pub(crate) running_started_at: Option<i64>,
+    #[serde(default)]
+    pub(crate) running_scheduled_at: Option<i64>,
 }
 
 #[derive(Debug, serde::Deserialize)]

@@ -850,15 +850,20 @@ Use schedule_create, then schedule_delete the returned id, then confirm it no lo
 
 ### `cron_create`
 
-Store a cron job definition (definition only; execution depends on your runner/daemon setup).
+Store a cron job definition (persisted).
+
+If you run `loopforge cron worker`, LoopForge will execute a small supported subset:
+
+- Schedules: `{ "kind": "every", "every_secs": <seconds> }`, `{ "kind": "at", "at_epoch_seconds": <epoch_seconds> }`
+- Actions: `{ "kind": "system_event", ... }`, `{ "kind": "channel_send", ... }` (uses `delivery` as message details)
 
 Tool call:
 
 ```json
 {
   "name": "demo",
-  "schedule": "*/5 * * * *",
-  "action": "channel_send",
+  "schedule": { "kind": "every", "every_secs": 300 },
+  "action": { "kind": "channel_send" },
   "delivery": { "channel": "console", "recipient": "stdout", "message": "tick" },
   "one_shot": false
 }
@@ -867,7 +872,7 @@ Tool call:
 Prompt:
 
 ```text
-Use cron_create to store a demo cron definition, then cron_list and write notes/cron.json. (This example stores the definition; it does not automatically run unless you have a runner.)
+Use cron_create to store a demo cron definition, then cron_list and write notes/cron.json. (To execute stored jobs, run `loopforge cron worker`.)
 ```
 
 ### `cron_list`

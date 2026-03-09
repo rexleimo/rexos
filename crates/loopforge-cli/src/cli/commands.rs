@@ -2,6 +2,7 @@ mod acp;
 mod agent;
 mod channel;
 mod config;
+mod cron;
 mod daemon;
 mod harness;
 mod release;
@@ -16,6 +17,7 @@ pub(crate) use acp::AcpCommand;
 pub(crate) use agent::{AgentCommand, AgentKind};
 pub(crate) use channel::ChannelCommand;
 pub(crate) use config::ConfigCommand;
+pub(crate) use cron::CronCommand;
 pub(crate) use daemon::DaemonCommand;
 pub(crate) use harness::HarnessCommand;
 pub(crate) use release::ReleaseCommand;
@@ -75,6 +77,11 @@ pub(crate) enum Command {
     Channel {
         #[command(subcommand)]
         command: ChannelCommand,
+    },
+    /// Cron scheduler helpers (stored jobs + optional runner)
+    Cron {
+        #[command(subcommand)]
+        command: CronCommand,
     },
     /// ACP event/checkpoint inspection helpers
     Acp {

@@ -14,6 +14,7 @@ LoopForge 的二进制命令是 `loopforge`。
 - 需要可持续续跑的长任务：`loopforge harness init` + `loopforge harness run`
 - 查看或执行本地 skills：`loopforge skills list|show|doctor|run`
 - 发送积压的 outbox 消息：`loopforge channel drain` / `loopforge channel worker`
+- 运行已存储的 cron（可选 worker）：`loopforge cron tick` / `loopforge cron worker`
 - 以 HTTP 服务方式运行：`loopforge daemon start`
 - 查看 ACP 事件与 checkpoint：`loopforge acp events` / `loopforge acp checkpoints`
 - 发版前检查元数据：`loopforge release check`
@@ -30,6 +31,7 @@ LoopForge 的二进制命令是 `loopforge`。
 - `loopforge harness init|run` —— 初始化并续跑长任务 harness workspace
 - `loopforge skills list|show|doctor|run` —— 发现、查看、诊断并执行本地 skills
 - `loopforge channel drain|worker` —— 发送 outbox 队列中的通知
+- `loopforge cron tick|worker` —— 运行已存储的 cron（可选 worker）
 - `loopforge daemon start` —— 启动 HTTP daemon
 - `loopforge acp events|checkpoints` —— 查看 ACP 事件和投递 checkpoint
 - `loopforge release check` —— 发版前检查 metadata 与预检项

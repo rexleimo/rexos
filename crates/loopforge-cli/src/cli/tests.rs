@@ -144,3 +144,21 @@ fn cli_parses_onboard_starter_profile() {
         "expected `loopforge onboard --starter workspace-brief` to parse, got: {parsed:?}"
     );
 }
+
+#[test]
+fn cli_parses_cron_tick_subcommand() {
+    let parsed = Cli::try_parse_from(["loopforge", "cron", "tick"]);
+    assert!(
+        parsed.is_ok(),
+        "expected `loopforge cron tick` to parse, got: {parsed:?}"
+    );
+}
+
+#[test]
+fn cli_parses_cron_worker_subcommand() {
+    let parsed = Cli::try_parse_from(["loopforge", "cron", "worker"]);
+    assert!(
+        parsed.is_ok(),
+        "expected `loopforge cron worker` to parse, got: {parsed:?}"
+    );
+}

@@ -14,6 +14,7 @@ Use this quick map when you are not sure where to start:
 - Run longer incremental work with durable workspace artifacts: `loopforge harness init` + `loopforge harness run`
 - Inspect or execute local skills: `loopforge skills list|show|doctor|run`
 - Deliver queued outbound messages: `loopforge channel drain` / `loopforge channel worker`
+- Run stored cron jobs (optional worker): `loopforge cron tick` / `loopforge cron worker`
 - Run LoopForge as an HTTP service: `loopforge daemon start`
 - Inspect ACP events and checkpoints: `loopforge acp events` / `loopforge acp checkpoints`
 - Check release metadata before publishing: `loopforge release check`
@@ -30,6 +31,7 @@ Top-level commands are organized by job type:
 - `loopforge harness init|run` — initialize and continue long-running harness workspaces
 - `loopforge skills list|show|doctor|run` — discover, inspect, diagnose, and execute local skills
 - `loopforge channel drain|worker` — deliver queued outbound notifications
+- `loopforge cron tick|worker` — run stored cron jobs (optional worker)
 - `loopforge daemon start` — start the HTTP daemon
 - `loopforge acp events|checkpoints` — inspect ACP events and delivery checkpoints
 - `loopforge release check` — verify release metadata and preflight conditions
