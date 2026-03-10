@@ -5,7 +5,7 @@ use rexos_kernel::config::{ProviderConfig, ProviderKind, RexosConfig};
 
 use crate::anthropic::AnthropicDriver;
 use crate::dashscope::DashscopeDriver;
-use crate::driver::{LlmDriver, OpenAiCompatDriver};
+use crate::driver::{LlmDriver, OpenAiCompatDriver, UnimplementedDriver};
 use crate::gemini::GeminiDriver;
 use crate::minimax::MiniMaxDriver;
 use crate::zhipu::ZhipuDriver;
@@ -54,6 +54,7 @@ fn build_driver(
             Arc::new(AnthropicDriver::new(provider.base_url.clone(), api_key)?)
         }
         ProviderKind::Gemini => Arc::new(GeminiDriver::new(provider.base_url.clone(), api_key)?),
+        ProviderKind::Bedrock => Arc::new(UnimplementedDriver::new("bedrock")),
     };
 
     Ok(driver)

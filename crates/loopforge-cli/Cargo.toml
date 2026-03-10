@@ -9,6 +9,9 @@ rust-version.workspace = true
 name = "loopforge"
 path = "src/main.rs"
 
+[features]
+bedrock = ["rexos/bedrock"]
+
 [dependencies]
 anyhow.workspace = true
 clap.workspace = true
