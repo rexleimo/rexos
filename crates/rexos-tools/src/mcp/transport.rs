@@ -33,17 +33,25 @@ pub(super) async fn connect(
 
     for (name, server_cfg) in &cfg.servers {
         let stdio = spawn_stdio_server(name, server_cfg, workspace_root).await?;
-        initialize(&stdio.client)
+        if let Err(err) = initialize(&stdio.client)
             .await
-            .with_context(|| format!("mcp initialize: {name}"))?;
+            .with_context(|| format!("mcp initialize: {name}"))
+        {
+            return Err(append_stderr_tail_context(err, name, &stdio).await);
+        }
+
+        let tools = match list_all_tools(&stdio.client)
+            .await
+            .with_context(|| format!("mcp tools/list: {name}"))
+        {
+            Ok(tools) => tools,
+            Err(err) => return Err(append_stderr_tail_context(err, name, &stdio).await),
+        };
+
         let server = Arc::new(McpServer {
             name: name.clone(),
             stdio,
         });
-
-        let tools = list_all_tools(&server.stdio.client)
-            .await
-            .with_context(|| format!("mcp tools/list: {name}"))?;
 
         for tool in tools {
             let local = allocate_local_tool_name(name, &tool.name, &mut used_names);
@@ -79,6 +87,23 @@ pub(super) async fn connect(
         tool_targets,
         tool_defs,
     })
+}
+
+async fn append_stderr_tail_context(
+    err: anyhow::Error,
+    name: &str,
+    stdio: &super::stdio::StdioServer,
+) -> anyhow::Error {
+    let tail = stdio.stderr_tail().lock().await.clone();
+    if tail.is_empty() {
+        return err;
+    }
+
+    err.context(format!(
+        "mcp server '{name}' stderr tail (last {} lines):\n{}",
+        tail.len(),
+        tail.join("\n")
+    ))
 }
 
 async fn initialize(client: &JsonRpcClient) -> anyhow::Result<()> {
