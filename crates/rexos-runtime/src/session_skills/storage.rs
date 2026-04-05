@@ -8,12 +8,12 @@ use crate::{
     SESSION_SKILL_POLICY_KEY_PREFIX,
 };
 
-#[derive(Debug, Clone)]
-pub(crate) struct SessionPolicySnapshot {
-    pub(crate) allowed_tools: Option<Vec<String>>,
-    pub(crate) allowed_skills: Option<Vec<String>>,
-    pub(crate) skill_policy: SessionSkillPolicy,
-    pub(crate) mcp_config_json: Option<String>,
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct SessionPolicySnapshot {
+    pub allowed_tools: Option<Vec<String>>,
+    pub allowed_skills: Option<Vec<String>>,
+    pub skill_policy: SessionSkillPolicy,
+    pub mcp_config_json: Option<String>,
 }
 
 fn normalize_names(values: impl IntoIterator<Item = String>) -> Vec<String> {
@@ -48,7 +48,7 @@ impl AgentRuntime {
         format!("{SESSION_SKILL_POLICY_KEY_PREFIX}{session_id}")
     }
 
-    pub(crate) fn load_session_policy_snapshot(
+    pub fn load_session_policy_snapshot(
         &self,
         session_id: &str,
     ) -> anyhow::Result<SessionPolicySnapshot> {
