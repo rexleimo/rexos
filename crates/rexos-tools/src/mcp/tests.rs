@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use super::*;
+use super::transport::{allocate_local_tool_name, sanitize_component};
 
 #[test]
 fn sanitize_component_rewrites_non_ascii_to_underscores() {

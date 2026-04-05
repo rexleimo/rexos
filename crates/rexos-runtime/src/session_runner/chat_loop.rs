@@ -19,16 +19,17 @@ impl AgentRuntime {
         user_prompt: &str,
         kind: TaskKind,
     ) -> anyhow::Result<String> {
-        let allowed_tools = self.load_session_allowed_tools(session_id)?;
-        let allowed_lookup: Option<HashSet<String>> = allowed_tools
+        let mut policy = self.load_session_policy_snapshot(session_id)?;
+        let allowed_lookup: Option<HashSet<String>> = policy
+            .allowed_tools
             .as_ref()
             .map(|tools| tools.iter().cloned().collect());
-        let mcp_config = self.load_session_mcp_config(session_id)?;
+        let allowed_tools = policy.allowed_tools.take();
         let tools = Toolset::new_with_allowed_tools_security_and_mcp_config(
             workspace_root.clone(),
             allowed_tools,
             self.security.clone(),
-            mcp_config.as_deref(),
+            policy.mcp_config_json.as_deref(),
         )
         .await?;
         let provider = self.router.provider_for(kind);

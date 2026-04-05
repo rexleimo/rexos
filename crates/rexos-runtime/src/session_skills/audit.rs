@@ -31,7 +31,9 @@ impl AgentRuntime {
         skill_name: &str,
         requested_permissions: &[String],
     ) -> anyhow::Result<()> {
-        if let Some(allowed_skills) = self.load_session_allowed_skills(session_id)? {
+        let session_policy = self.load_session_policy_snapshot(session_id)?;
+
+        if let Some(allowed_skills) = session_policy.allowed_skills.as_ref() {
             if !allowed_skills
                 .iter()
                 .any(|skill| skill.eq_ignore_ascii_case(skill_name.trim()))
@@ -52,7 +54,7 @@ impl AgentRuntime {
             }
         }
 
-        let policy: SessionSkillPolicy = self.load_session_skill_policy(session_id)?;
+        let policy: SessionSkillPolicy = session_policy.skill_policy;
         if !policy.allowlist.is_empty()
             && !policy
                 .allowlist
