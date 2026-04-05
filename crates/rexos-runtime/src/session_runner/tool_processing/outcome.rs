@@ -43,7 +43,11 @@ pub(super) fn finalize_tool_output(
             }
         },
         Err(err) => {
-            let err_text = err.to_string();
+            let err_text = err
+                .chain()
+                .map(|cause| cause.to_string())
+                .collect::<Vec<_>>()
+                .join(": ");
             let (safe_error, leak_guard): (String, Option<LeakGuardAudit>) =
                 match runtime.leak_guard.inspect_tool_output(err_text) {
                     LeakGuardVerdict::Allowed { content, audit } => (content, audit),
