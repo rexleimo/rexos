@@ -1,11 +1,15 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use axum::extract::State;
 use axum::routing::post;
 use axum::{Json, Router};
 use serde_json::json;
 
-static ENV_LOCK: Mutex<()> = Mutex::new(());
+static ENV_LOCK: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+fn env_lock() -> &'static tokio::sync::Mutex<()> {
+    ENV_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+}
 
 #[derive(Clone, Default)]
 struct TestState {
@@ -109,9 +113,8 @@ async fn openai_compat_client_posts_and_parses_tool_calls() {
 }
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn openai_compat_client_retries_transient_http_errors() {
-    let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = env_lock().lock().await;
     let _guard = EnvVarGuard::set("LOOPFORGE_LLM_RETRY_MAX", "1");
 
     async fn handler(
@@ -244,9 +247,8 @@ async fn openai_compat_client_parses_legacy_function_call_into_tool_call() {
 }
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn openai_compat_client_timeout_can_be_overridden_via_env() {
-    let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = env_lock().lock().await;
     let _guard = EnvVarGuard::set("LOOPFORGE_OPENAI_COMPAT_TIMEOUT_SECS", "1");
     let _retry_guard = EnvVarGuard::set("LOOPFORGE_LLM_RETRY_MAX", "0");
 

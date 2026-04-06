@@ -2,9 +2,8 @@ use super::shared::{stub_bridge_script, EnvVarGuard};
 use super::*;
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn browser_tools_work_with_stub_bridge() {
-    let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = async_env_lock().lock().await;
 
     let tmp = tempfile::tempdir().unwrap();
     let workspace = tmp.path().join("ws");
@@ -96,9 +95,8 @@ async fn browser_tools_work_with_stub_bridge() {
 }
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn browser_navigate_honors_headless_flag() {
-    let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = async_env_lock().lock().await;
 
     let tmp = tempfile::tempdir().unwrap();
     let workspace = tmp.path().join("ws");

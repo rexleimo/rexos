@@ -9,7 +9,7 @@ use axum::{Json, Router};
 use serde_json::json;
 
 use super::super::discovery::{find_or_create_page_ws, read_devtools_url};
-use super::shared::{EnvVarGuard, ENV_LOCK};
+use super::shared::{async_env_lock, EnvVarGuard};
 
 #[tokio::test]
 async fn find_or_create_page_ws_bypasses_proxy_for_loopback() {
@@ -51,7 +51,6 @@ async fn find_or_create_page_ws_bypasses_proxy_for_loopback() {
 }
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn cdp_tab_mode_reuse_skips_json_new() {
     #[derive(Clone)]
     struct StateData {
@@ -86,7 +85,7 @@ async fn cdp_tab_mode_reuse_skips_json_new() {
         axum::serve(listener, app).await.unwrap();
     });
 
-    let _lock = ENV_LOCK.lock().unwrap_or_else(|err| err.into_inner());
+    let _lock = async_env_lock().lock().await;
     let _mode = EnvVarGuard::set("LOOPFORGE_BROWSER_CDP_TAB_MODE", "reuse");
 
     let http = reqwest::Client::builder()

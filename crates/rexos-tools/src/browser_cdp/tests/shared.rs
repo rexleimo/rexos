@@ -1,4 +1,9 @@
 pub(super) static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+static ASYNC_ENV_LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
+
+pub(super) fn async_env_lock() -> &'static tokio::sync::Mutex<()> {
+    ASYNC_ENV_LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
+}
 
 pub(super) struct EnvVarGuard {
     key: &'static str,

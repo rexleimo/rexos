@@ -1,9 +1,8 @@
 use super::*;
 
 #[tokio::test]
-#[allow(clippy::await_holding_lock)]
 async fn docker_exec_is_disabled_by_default() {
-    let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let _lock = async_env_lock().lock().await;
 
     let previous = std::env::var_os("LOOPFORGE_DOCKER_EXEC_ENABLED");
     std::env::remove_var("LOOPFORGE_DOCKER_EXEC_ENABLED");
