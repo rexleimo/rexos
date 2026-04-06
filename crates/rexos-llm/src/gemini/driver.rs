@@ -32,7 +32,7 @@ impl GeminiDriver {
 }
 
 impl LlmDriver for GeminiDriver {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move {
             let gemini_req = build_request(&req)?;
 

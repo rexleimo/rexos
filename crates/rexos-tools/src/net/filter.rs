@@ -23,8 +23,8 @@ fn is_forbidden_ipv4(ip: Ipv4Addr) -> bool {
 
 fn is_forbidden_ipv6(ip: Ipv6Addr) -> bool {
     if ip.is_loopback()
-        || ip.is_unique_local()
-        || ip.is_unicast_link_local()
+        || is_unique_local_ipv6(ip)
+        || is_unicast_link_local_ipv6(ip)
         || ip.is_multicast()
         || ip.is_unspecified()
     {
@@ -33,4 +33,14 @@ fn is_forbidden_ipv6(ip: Ipv6Addr) -> bool {
 
     let first_segment = ip.segments()[0];
     (first_segment & 0xffc0) == 0xfec0
+}
+
+fn is_unique_local_ipv6(ip: Ipv6Addr) -> bool {
+    let first_segment = ip.segments()[0];
+    (first_segment & 0xfe00) == 0xfc00
+}
+
+fn is_unicast_link_local_ipv6(ip: Ipv6Addr) -> bool {
+    let first_segment = ip.segments()[0];
+    (first_segment & 0xffc0) == 0xfe80
 }

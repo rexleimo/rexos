@@ -23,5 +23,5 @@ pub(super) fn parse_update_file(
         bail!("Update File '{path}' has no hunks");
     }
 
-    Ok(PatchOp::UpdateFile { path, hunks })
+    Ok(PatchOp::Update { path, hunks })
 }

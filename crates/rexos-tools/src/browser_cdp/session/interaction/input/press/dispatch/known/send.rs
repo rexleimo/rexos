@@ -25,7 +25,7 @@ async fn dispatch_key_event(
         .cdp
         .send(
             "Input.dispatchKeyEvent",
-            super::payload::key_event_payload(event_type, &event.key, &event.code, event.vkey),
+            super::payload::key_event_payload(event_type, event.key, event.code, event.vkey),
         )
         .await
         .map(|_| ())

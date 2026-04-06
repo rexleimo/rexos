@@ -11,7 +11,7 @@ fn apply_patch_op_add_file_creates_parent_dirs_and_counts_added_file() {
 
     apply_patch_op(
         &tools,
-        PatchOp::AddFile {
+        PatchOp::Add {
             path: "nested/greet.txt".to_string(),
             content: "hi".to_string(),
         },
@@ -36,7 +36,7 @@ fn apply_patch_op_update_file_rewrites_existing_content_and_counts_updated_file(
 
     apply_patch_op(
         &tools,
-        PatchOp::UpdateFile {
+        PatchOp::Update {
             path: "greet.txt".to_string(),
             hunks: vec![PatchHunk {
                 old_lines: vec!["hi".to_string()],

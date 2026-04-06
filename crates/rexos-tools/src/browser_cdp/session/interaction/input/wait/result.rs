@@ -3,7 +3,7 @@ use serde_json::{Map, Value};
 use crate::browser_cdp::session::helpers::page_info;
 use crate::browser_cdp::session::CdpBrowserSession;
 
-pub(super) fn normalize_wait_arg<'a>(value: Option<&'a str>) -> Option<&'a str> {
+pub(super) fn normalize_wait_arg(value: Option<&str>) -> Option<&str> {
     value.map(str::trim).filter(|value| !value.is_empty())
 }
 

@@ -31,7 +31,7 @@ impl MiniMaxDriver {
 }
 
 impl LlmDriver for MiniMaxDriver {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move {
             let tool_choice = if req.tools.is_empty() {
                 "none".to_string()

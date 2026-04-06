@@ -44,6 +44,16 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertIn("Check (loopforge-cli with bedrock)", ci)
         self.assertIn("cargo check -p loopforge-cli --locked --features bedrock", ci)
 
+    def test_ci_includes_clippy_core_fast_guard(self):
+        ci = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("clippy-core-fast", ci)
+        self.assertIn("clippy core crates (fast)", ci)
+        self.assertIn("Clippy (core crates, all targets)", ci)
+        self.assertIn(
+            "cargo clippy -p rexos-tools -p rexos-llm -p rexos-kernel --all-targets --locked -- -D warnings",
+            ci,
+        )
+
     def test_provider_nightly_workflow_generates_health_artifacts(self):
         workflow = (
             REPO_ROOT / ".github/workflows/provider-nightly.yml"

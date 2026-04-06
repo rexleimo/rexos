@@ -51,6 +51,7 @@ async fn find_or_create_page_ws_bypasses_proxy_for_loopback() {
 }
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)]
 async fn cdp_tab_mode_reuse_skips_json_new() {
     #[derive(Clone)]
     struct StateData {

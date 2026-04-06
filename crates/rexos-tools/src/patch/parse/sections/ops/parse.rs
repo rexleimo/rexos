@@ -24,7 +24,7 @@ pub(super) fn parse_patch(input: &str) -> anyhow::Result<Vec<PatchOp>> {
             PatchDirective::Update(path) => {
                 ops.push(super::update::parse_update_file(path, body, &mut index)?)
             }
-            PatchDirective::Delete(path) => ops.push(PatchOp::DeleteFile { path }),
+            PatchDirective::Delete(path) => ops.push(PatchOp::Delete { path }),
         }
     }
 

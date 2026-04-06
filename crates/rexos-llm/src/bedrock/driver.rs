@@ -78,7 +78,7 @@ impl BedrockDriver {
 }
 
 impl LlmDriver for BedrockDriver {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move {
             let model_id = self.model_id(&req.model);
             if model_id.is_empty() {

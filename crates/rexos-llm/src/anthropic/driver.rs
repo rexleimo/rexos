@@ -32,7 +32,7 @@ impl AnthropicDriver {
 }
 
 impl LlmDriver for AnthropicDriver {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move {
             let anthropic_req = build_request(req)?;
 

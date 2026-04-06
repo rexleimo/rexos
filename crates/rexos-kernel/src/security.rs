@@ -59,22 +59,11 @@ pub struct EgressConfig {
     pub rules: Vec<EgressRule>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(default)]
 pub struct EgressRule {
     pub tool: String,
     pub host: String,
     pub path_prefix: String,
     pub methods: Vec<String>,
-}
-
-impl Default for EgressRule {
-    fn default() -> Self {
-        Self {
-            tool: String::new(),
-            host: String::new(),
-            path_prefix: String::new(),
-            methods: Vec::new(),
-        }
-    }
 }

@@ -159,18 +159,10 @@ impl Default for SkillsConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(default)]
 struct SkillsConfigWrapper {
     skills: SkillsConfig,
-}
-
-impl Default for SkillsConfigWrapper {
-    fn default() -> Self {
-        Self {
-            skills: SkillsConfig::default(),
-        }
-    }
 }
 
 impl RexosConfig {

@@ -9,7 +9,7 @@ use crate::openai_compat::{ChatCompletionRequest, ChatMessage, OpenAiCompatibleC
 pub type ChatFuture<'a> = Pin<Box<dyn Future<Output = anyhow::Result<ChatMessage>> + Send + 'a>>;
 
 pub trait LlmDriver: Send + Sync {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a>;
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_>;
 }
 
 #[derive(Clone)]
@@ -26,7 +26,7 @@ impl OpenAiCompatDriver {
 }
 
 impl LlmDriver for OpenAiCompatDriver {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move { self.client.chat_completions(req).await })
     }
 }
@@ -45,7 +45,7 @@ impl UnimplementedDriver {
 }
 
 impl LlmDriver for UnimplementedDriver {
-    fn chat<'a>(&'a self, _req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, _req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move { bail!("provider not implemented: {}", self.provider) })
     }
 }

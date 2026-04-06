@@ -17,5 +17,5 @@ fn parse_patch_skips_blank_lines_between_directives() {
 
 *** End Patch"#;
     let ops = super::parse_patch(patch).unwrap();
-    assert!(matches!(&ops[0], PatchOp::DeleteFile { path } if path == "old.txt"));
+    assert!(matches!(&ops[0], PatchOp::Delete { path } if path == "old.txt"));
 }

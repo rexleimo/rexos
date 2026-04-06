@@ -10,11 +10,7 @@ pub(crate) fn spawn_process_output_reader(
 ) {
     tokio::spawn(async move {
         let mut tmp = [0u8; 4096];
-        loop {
-            let n = match stream.read(&mut tmp).await {
-                Ok(n) => n,
-                Err(_) => break,
-            };
+        while let Ok(n) = stream.read(&mut tmp).await {
             if n == 0 {
                 break;
             }

@@ -32,7 +32,7 @@ impl ZhipuDriver {
 }
 
 impl LlmDriver for ZhipuDriver {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move {
             let token = self.api_key.as_deref().and_then(to_bearer_token);
 

@@ -15,12 +15,12 @@ fn parse_patch_handles_add_update_and_delete_ops() {
     let ops = parse_patch(patch).unwrap();
     assert_eq!(ops.len(), 3);
     assert!(
-        matches!(&ops[0], PatchOp::AddFile { path, content } if path == "greet.txt" && content == "hi")
+        matches!(&ops[0], PatchOp::Add { path, content } if path == "greet.txt" && content == "hi")
     );
     assert!(
-        matches!(&ops[1], PatchOp::UpdateFile { path, hunks } if path == "greet.txt" && hunks.len() == 1)
+        matches!(&ops[1], PatchOp::Update { path, hunks } if path == "greet.txt" && hunks.len() == 1)
     );
-    assert!(matches!(&ops[2], PatchOp::DeleteFile { path } if path == "old.txt"));
+    assert!(matches!(&ops[2], PatchOp::Delete { path } if path == "old.txt"));
 }
 
 #[test]

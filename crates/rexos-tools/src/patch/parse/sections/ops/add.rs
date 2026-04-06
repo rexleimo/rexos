@@ -20,7 +20,7 @@ pub(super) fn parse_add_file(
         *index += 1;
     }
 
-    Ok(PatchOp::AddFile {
+    Ok(PatchOp::Add {
         path,
         content: content_lines.join("\n"),
     })

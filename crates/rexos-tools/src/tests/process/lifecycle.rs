@@ -1,6 +1,7 @@
 use super::*;
 
 #[tokio::test]
+#[allow(clippy::await_holding_lock)]
 async fn docker_exec_is_disabled_by_default() {
     let _lock = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
 

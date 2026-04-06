@@ -1,8 +1,8 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PatchOp {
-    AddFile { path: String, content: String },
-    UpdateFile { path: String, hunks: Vec<PatchHunk> },
-    DeleteFile { path: String },
+    Add { path: String, content: String },
+    Update { path: String, hunks: Vec<PatchHunk> },
+    Delete { path: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

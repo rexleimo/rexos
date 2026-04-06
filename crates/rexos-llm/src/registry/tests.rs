@@ -30,7 +30,7 @@ fn secret_resolver_reads_provider_key_from_env() {
         security: Default::default(),
     };
 
-    let resolver = SecretResolver::default();
+    let resolver = SecretResolver;
     assert_eq!(
         resolver.resolve_provider_api_key(&cfg, "anthropic"),
         Some("test-secret".to_string())
@@ -43,7 +43,7 @@ fn secret_resolver_reads_provider_key_from_env() {
 fn secret_resolver_returns_none_for_blank_env_name() {
     use rexos_kernel::secrets::SecretResolver;
 
-    let resolver = SecretResolver::default();
+    let resolver = SecretResolver;
     assert_eq!(resolver.resolve_env(""), None);
 }
 

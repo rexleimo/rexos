@@ -31,7 +31,7 @@ impl DashscopeDriver {
 }
 
 impl LlmDriver for DashscopeDriver {
-    fn chat<'a>(&'a self, req: ChatCompletionRequest) -> ChatFuture<'a> {
+    fn chat(&self, req: ChatCompletionRequest) -> ChatFuture<'_> {
         Box::pin(async move {
             let dash_req = DashscopeRequest {
                 model: req.model,
