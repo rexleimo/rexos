@@ -19,6 +19,7 @@ rexos-tools = { path = "../rexos-tools" }
 
 [dev-dependencies]
 axum.workspace = true
+serial_test.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 tokio.workspace = true

@@ -3,8 +3,9 @@ use std::collections::BTreeMap;
 use rexos::config::{ProviderConfig, ProviderKind, RexosConfig, RouteConfig, RouterConfig};
 use rexos::paths::RexosPaths;
 use rexos::router::TaskKind;
-use rexos::security::{LeakMode, SecurityConfig};
+use rexos::security::{EgressConfig, EgressRule, LeakMode, SecurityConfig};
 use serde_json::{json, Value};
+use serial_test::serial;
 
 mod support;
 
@@ -206,6 +207,7 @@ fn compact_request(req: &Value) -> Value {
 }
 
 #[tokio::test]
+#[serial]
 async fn replay_fixture_drives_session_and_tool_calls() {
     let fixture = support::openai_compat_fixture::load_json_array(include_str!(
         "fixtures/replay/session_write_file.json"
@@ -292,6 +294,7 @@ async fn replay_fixture_drives_session_and_tool_calls() {
 }
 
 #[tokio::test]
+#[serial]
 async fn replay_fixture_blocks_tool_not_in_allowed_tools() {
     let fixture = support::openai_compat_fixture::load_json_array(include_str!(
         "fixtures/replay/session_tool_not_allowed.json"
@@ -351,6 +354,7 @@ async fn replay_fixture_blocks_tool_not_in_allowed_tools() {
 }
 
 #[tokio::test]
+#[serial]
 async fn replay_fixture_surfaces_tool_failure_errors() {
     let fixture = support::openai_compat_fixture::load_json_array(include_str!(
         "fixtures/replay/session_tool_failed_invalid_path.json"
@@ -414,6 +418,7 @@ async fn replay_fixture_surfaces_tool_failure_errors() {
 }
 
 #[tokio::test]
+#[serial]
 async fn replay_fixture_executes_mcp_tool_calls() {
     let fixture = support::openai_compat_fixture::load_json_array(include_str!(
         "fixtures/replay/session_mcp_echo.json"
@@ -500,6 +505,7 @@ async fn replay_fixture_executes_mcp_tool_calls() {
 }
 
 #[tokio::test]
+#[serial]
 async fn replay_fixture_enforces_tool_approval_for_dangerous_tools() {
     let _mode = EnvVarGuard::set("LOOPFORGE_APPROVAL_MODE", "enforce");
     let _allow = EnvVarGuard::set("LOOPFORGE_APPROVAL_ALLOW", "");
@@ -562,6 +568,7 @@ async fn replay_fixture_enforces_tool_approval_for_dangerous_tools() {
 }
 
 #[tokio::test]
+#[serial]
 async fn replay_fixture_blocks_leak_guard_in_enforce_mode() {
     let fixture = support::openai_compat_fixture::load_json_array(include_str!(
         "fixtures/replay/session_leak_guard_enforce.json"
@@ -613,6 +620,78 @@ async fn replay_fixture_blocks_leak_guard_in_enforce_mode() {
                 "param_type": "object",
                 "required": ["path"],
                 "properties": ["path"],
+                "additional_properties": false,
+            }],
+            "message_roles": ["user"],
+            "assistant_tool_calls": [],
+            "tool_messages": [],
+        })
+    );
+
+    server.abort();
+}
+
+#[tokio::test]
+#[serial]
+async fn replay_fixture_blocks_egress_policy_rule_mismatches() {
+    let fixture = support::openai_compat_fixture::load_json_array(include_str!(
+        "fixtures/replay/session_egress_policy_block.json"
+    ));
+    let server = support::openai_compat_fixture::FixtureServer::spawn(fixture).await;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let security = rexos::security::SecurityConfig {
+        egress: EgressConfig {
+            rules: vec![EgressRule {
+                tool: "web_fetch".to_string(),
+                host: "example.com".to_string(),
+                path_prefix: "/".to_string(),
+                methods: vec!["GET".to_string()],
+            }],
+        },
+        ..Default::default()
+    };
+
+    let (agent, _paths, workspace_root) = fixture_agent(&tmp, server.base_url.clone(), security);
+
+    let session_id = "s-replay-egress";
+    agent
+        .set_session_allowed_tools(session_id, vec!["web_fetch".to_string()])
+        .unwrap();
+
+    let err = agent
+        .run_session(
+            workspace_root,
+            session_id,
+            None,
+            "fetch localhost",
+            TaskKind::Coding,
+        )
+        .await
+        .unwrap_err();
+    let err_text = err.to_string();
+    assert!(
+        err_text.contains("egress host not allowed"),
+        "expected egress host block, got: {err_text}"
+    );
+    assert!(
+        err_text.contains("web_fetch"),
+        "expected tool name in error, got: {err_text}"
+    );
+
+    let requests = server.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1, "expected one chat completions call");
+    assert_eq!(
+        compact_request(&requests[0]),
+        json!({
+            "model": "fixture-model",
+            "temperature": 0.0,
+            "tools": [{
+                "name": "web_fetch",
+                "type": "function",
+                "param_type": "object",
+                "required": ["url"],
+                "properties": ["allow_private", "max_bytes", "timeout_ms", "url"],
                 "additional_properties": false,
             }],
             "message_roles": ["user"],
