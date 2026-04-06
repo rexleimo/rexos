@@ -157,6 +157,26 @@ jobs:
       - name: Check (loopforge-cli with bedrock)
         run: cargo check -p loopforge-cli --locked --features bedrock
 
+  security-boundaries-fast:
+    name: security boundaries (fast) (windows)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Test (rexos-tools web/a2a/browser policy slices)
+        run: |
+          cargo test -p rexos-tools --locked tests::web::a2a::
+          cargo test -p rexos-tools --locked tests::web::fetch::web_fetch_respects_egress_policy_rules
+          cargo test -p rexos-tools --locked tests::browser::policy::url::
+
   docs:
     name: docs build
     runs-on: ubuntu-latest
