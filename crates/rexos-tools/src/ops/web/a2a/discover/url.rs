@@ -7,6 +7,9 @@ pub(super) async fn agent_card_url(
     security: &SecurityConfig,
 ) -> anyhow::Result<reqwest::Url> {
     let mut url = reqwest::Url::parse(url).context("parse url")?;
+    url.set_path("/.well-known/agent.json");
+    url.set_query(None);
+    url.set_fragment(None);
     super::super::super::ensure_remote_url_allowed(
         &url,
         allow_private,
@@ -15,8 +18,5 @@ pub(super) async fn agent_card_url(
         security,
     )
     .await?;
-    url.set_path("/.well-known/agent.json");
-    url.set_query(None);
-    url.set_fragment(None);
     Ok(url)
 }

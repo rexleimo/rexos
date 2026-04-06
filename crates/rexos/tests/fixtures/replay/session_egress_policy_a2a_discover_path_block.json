@@ -1,0 +1,25 @@
+[
+  {
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            {
+              "id": "call_1",
+              "type": "function",
+              "function": {
+                "name": "a2a_discover",
+                "arguments": "{\"url\":\"http://127.0.0.1/\",\"allow_private\":true}"
+              }
+            }
+          ]
+        },
+        "finish_reason": "tool_calls"
+      }
+    ]
+  }
+]
+

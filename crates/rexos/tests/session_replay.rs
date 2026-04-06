@@ -846,3 +846,79 @@ async fn replay_fixture_blocks_egress_policy_method_mismatches() {
 
     server.abort();
 }
+
+#[tokio::test]
+#[serial]
+async fn replay_fixture_blocks_a2a_discover_egress_path_mismatches() {
+    let fixture = support::openai_compat_fixture::load_json_array(include_str!(
+        "fixtures/replay/session_egress_policy_a2a_discover_path_block.json"
+    ));
+    let server = support::openai_compat_fixture::FixtureServer::spawn(fixture).await;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let security = rexos::security::SecurityConfig {
+        egress: EgressConfig {
+            rules: vec![EgressRule {
+                tool: "a2a_discover".to_string(),
+                host: "127.0.0.1".to_string(),
+                path_prefix: "/ok".to_string(),
+                methods: vec!["GET".to_string()],
+            }],
+        },
+        ..Default::default()
+    };
+
+    let (agent, _paths, workspace_root) = fixture_agent(&tmp, server.base_url.clone(), security);
+
+    let session_id = "s-replay-egress-a2a-discover";
+    agent
+        .set_session_allowed_tools(session_id, vec!["a2a_discover".to_string()])
+        .unwrap();
+
+    let err = agent
+        .run_session(
+            workspace_root,
+            session_id,
+            None,
+            "discover agent card",
+            TaskKind::Coding,
+        )
+        .await
+        .unwrap_err();
+    let err_text = err.to_string();
+    assert!(
+        err_text.contains("egress path not allowed"),
+        "expected egress path block, got: {err_text}"
+    );
+    assert!(
+        err_text.contains("/.well-known/agent.json"),
+        "expected agent card path in error, got: {err_text}"
+    );
+    assert!(
+        err_text.contains("a2a_discover"),
+        "expected tool name in error, got: {err_text}"
+    );
+
+    let requests = server.requests.lock().unwrap().clone();
+    assert_eq!(requests.len(), 1, "expected one chat completions call");
+    assert_eq!(
+        compact_request(&requests[0]),
+        json!({
+            "model": "fixture-model",
+            "temperature": 0.0,
+            "tools": [{
+                "name": "a2a_discover",
+                "type": "function",
+                "param_type": "object",
+                "required": ["url"],
+                "properties": ["allow_private", "url"],
+                "additional_properties": false,
+            }],
+            "message_roles": ["user"],
+            "assistant_tool_calls": [],
+            "tool_messages": [],
+        })
+    );
+
+    server.abort();
+}
