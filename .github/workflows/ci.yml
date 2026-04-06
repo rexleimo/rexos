@@ -177,6 +177,25 @@ jobs:
           cargo test -p rexos-tools --locked tests::web::fetch::web_fetch_respects_egress_policy_rules
           cargo test -p rexos-tools --locked tests::browser::policy::url::
 
+  msrv-compile:
+    name: msrv compile (rust 1.75.0)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.75.0
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.75.0
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check (workspace, locked)
+        run: cargo check --workspace --locked
+
   docs:
     name: docs build
     runs-on: ubuntu-latest

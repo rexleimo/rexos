@@ -29,6 +29,14 @@ class CiWorkflowTests(unittest.TestCase):
         )
         self.assertIn("cargo test -p rexos-tools --locked tests::browser::policy::url::", ci)
 
+    def test_ci_includes_msrv_compile_guard(self):
+        ci = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        self.assertIn("msrv-compile", ci)
+        self.assertIn("msrv compile (rust 1.75.0)", ci)
+        self.assertIn("Install Rust 1.75.0", ci)
+        self.assertIn("toolchain: 1.75.0", ci)
+        self.assertIn("cargo check --workspace --locked", ci)
+
     def test_provider_nightly_workflow_generates_health_artifacts(self):
         workflow = (
             REPO_ROOT / ".github/workflows/provider-nightly.yml"
