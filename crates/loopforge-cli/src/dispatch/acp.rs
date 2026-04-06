@@ -16,7 +16,10 @@ pub(super) fn run(command: AcpCommand) -> anyhow::Result<()> {
 
             let events = load_acp_events(&memory, session.as_deref(), limit)?;
             if json {
-                println!("{}", serde_json::to_string_pretty(&events)?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&build_acp_events_json(&events)?)?
+                );
             } else {
                 for event in events {
                     let session = event
@@ -42,7 +45,10 @@ pub(super) fn run(command: AcpCommand) -> anyhow::Result<()> {
 
             let checkpoints = load_acp_checkpoints(&memory, &session)?;
             if json {
-                println!("{}", serde_json::to_string_pretty(&checkpoints)?);
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&build_acp_checkpoints_json(&checkpoints)?)?
+                );
             } else if checkpoints.is_empty() {
                 println!("no checkpoints for session {}", session);
             } else {
@@ -64,5 +70,55 @@ pub(super) fn run(command: AcpCommand) -> anyhow::Result<()> {
             }
             Ok(())
         }
+    }
+}
+
+fn build_acp_events_json(events: &[serde_json::Value]) -> anyhow::Result<serde_json::Value> {
+    Ok(serde_json::to_value(events)?)
+}
+
+fn build_acp_checkpoints_json(
+    checkpoints: &[serde_json::Value],
+) -> anyhow::Result<serde_json::Value> {
+    Ok(serde_json::to_value(checkpoints)?)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn build_acp_events_json_keeps_expected_shape() {
+        let events = vec![
+            json!({"session_id": "s-1", "event_type": "tool.failed", "created_at": 123}),
+            json!({"session_id": "s-2", "event_type": "tool.succeeded", "created_at": 124}),
+        ];
+
+        let out = build_acp_events_json(&events).unwrap();
+        assert_eq!(
+            out,
+            json!([
+                {"session_id": "s-1", "event_type": "tool.failed", "created_at": 123},
+                {"session_id": "s-2", "event_type": "tool.succeeded", "created_at": 124}
+            ])
+        );
+    }
+
+    #[test]
+    fn build_acp_checkpoints_json_keeps_expected_shape() {
+        let checkpoints = vec![
+            json!({"channel": "email", "cursor": "42", "updated_at": 1000}),
+            json!({"channel": "slack", "cursor": "43", "updated_at": 1001}),
+        ];
+
+        let out = build_acp_checkpoints_json(&checkpoints).unwrap();
+        assert_eq!(
+            out,
+            json!([
+                {"channel": "email", "cursor": "42", "updated_at": 1000},
+                {"channel": "slack", "cursor": "43", "updated_at": 1001}
+            ])
+        );
     }
 }
